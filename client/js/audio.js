@@ -62,17 +62,32 @@ export class Sfx {
 
   shot(weapon, dist = 0, pan = 0) {
     const fall = 1 / (1 + dist / 18);
-    if (weapon === 'shotgun') {
+    if (weapon === 'deer') {
+      this.noise(0.5, 1800, 0.6, 1.0 * fall, 'lowpass', pan);
+      this.tone(70, 0.4, 0.5 * fall, 'sine', -40);
+      setTimeout(() => this.noise(0.6, 600, 0.5, 0.25 * fall, 'lowpass', pan), 120); // echo across the fields
+    } else if (weapon === 'shotgun') {
       this.noise(0.35, 900, 0.7, 0.9 * fall, 'lowpass', pan);
       this.tone(90, 0.25, 0.4 * fall, 'sine', -50);
     } else {
       this.noise(0.12, 2400, 0.9, 0.45 * fall, 'bandpass', pan);
-      this.tone(160, 0.08, 0.15 * fall, 'square', -80);
+      this.noise(0.05, 7000, 0.7, 0.18 * fall, 'highpass', pan);   // crack
+      this.tone(95, 0.1, 0.35 * fall, 'sine', -45);                 // thump
     }
   }
 
-  hit(head) { this.tone(head ? 1500 : 1100, 0.07, 0.18, 'triangle'); }
-  kill() { this.tone(660, 0.12, 0.2, 'triangle'); setTimeout(() => this.tone(990, 0.2, 0.2, 'triangle'), 90); }
+  // hitmarker: short bright tick with a little noise transient
+  hit(head) {
+    if (head) { this.tone(2100, 0.09, 0.22, 'triangle'); this.tone(3150, 0.06, 0.12, 'sine'); this.noise(0.03, 5000, 1, 0.15, 'highpass'); }
+    else { this.tone(1350, 0.05, 0.2, 'triangle'); this.noise(0.025, 4000, 1, 0.12, 'highpass'); }
+  }
+  // kill confirm: punchy low thunk + rising chime
+  kill(head) {
+    this.tone(120, 0.18, 0.35, 'sine', -60);
+    this.noise(0.06, 1200, 1, 0.25);
+    setTimeout(() => this.tone(880, 0.12, 0.18, 'triangle'), 40);
+    setTimeout(() => this.tone(head ? 1760 : 1320, 0.25, 0.18, 'triangle'), 120);
+  }
   hurt() { this.noise(0.18, 500, 1, 0.35); this.tone(140, 0.15, 0.2, 'sawtooth', -60); }
   jump() { this.noise(0.08, 600, 1, 0.08); }
   boing() { this.tone(220, 0.35, 0.25, 'sine', 500); }

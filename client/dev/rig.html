@@ -1,0 +1,27 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;overflow:hidden}</style>
+<script type="importmap">{ "imports": { "three": "../vendor/three.module.min.js", "three/addons/": "../vendor/jsm/" } }</script></head><body>
+<script type="module">
+import * as THREE from 'three';
+import { getMap } from '../shared/map.js';
+import { buildWorld, buildSky, setQuality } from '../js/world.js';
+import { loadRig, buildRiggedCharacter, animateRig } from '../js/rig.js';
+const q = new URLSearchParams(location.search);
+setQuality('high');
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.toneMapping = THREE.ACESFilmicToneMapping; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
+const map = getMap('culdesac'); const scene = new THREE.Scene(); scene.fog = new THREE.Fog(map.theme.fog, 45, 170); scene.add(buildSky(map.theme));
+scene.add(new THREE.HemisphereLight('#dff1ff', map.theme.hemiGround, 1.5)); const sun = new THREE.DirectionalLight('#ffe2b0', 3); sun.position.set(20, 30, 40); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20 }); scene.add(sun);
+scene.add(buildWorld(map));
+await loadRig('../vendor/models/');
+const defs = [
+  { id: 2, outfit: 'suburban', color: '#7dd3fc', x: -2.4, speed: 0 },
+  { id: 3, outfit: 'suburban', color: '#f9a8d4', x: -0.8, speed: 3 },
+  { id: 4, outfit: 'country', color: '#8f2a1e', x: 0.8, speed: 0 },
+  { id: 5, outfit: 'country', color: '#7a5a2a', x: 2.4, speed: 9 },
+];
+const chars = defs.map((d) => { const c = buildRiggedCharacter(d); c.position.set(d.x, 0, 24); c.rotation.y = Math.PI + (Number(q.get('turn')) || 0); scene.add(c); return { c, d }; });
+const t = Number(q.get('t') || 0.4);
+for (let i = 0; i < 20; i++) for (const { c, d } of chars) animateRig(c.userData.rig, d.speed, t / 20, Number(q.get('pitch') || 0), true);
+const cam = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 500);
+const cp = (q.get('cam') || '0,1.4,28.2').split(',').map(Number); cam.position.set(...cp); cam.lookAt(0, 1.0, 24);
+r.render(scene, cam); document.title = 'done'; window.__done = true;
+</script></body></html>

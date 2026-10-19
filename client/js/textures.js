@@ -120,6 +120,15 @@ export const metal = (rep = [1, 1]) => make('metal', 128, (g, s) => {
   noise(g, s, ['rgba(120,80,40,.06)', 'rgba(0,0,0,.05)'], 300, 3, 61);
 }, rep);
 
+export const camo = (rep = [1, 1]) => make('camo', 64, (g, s) => {
+  g.fillStyle = '#6b6b3a'; g.fillRect(0, 0, s, s);
+  const rand = rng(71);
+  for (let i = 0; i < 40; i++) {
+    g.fillStyle = ['#4a4a26', '#8a7a4a', '#3a2f1e', '#5f6b34'][i % 4];
+    g.beginPath(); g.ellipse(rand() * s, rand() * s, 4 + rand() * 9, 3 + rand() * 6, rand() * 3, 0, Math.PI * 2); g.fill();
+  }
+}, rep);
+
 export const bark = (rep = [1, 1]) => make('bark', 128, (g, s) => {
   g.fillStyle = '#4a3a2a'; g.fillRect(0, 0, s, s);
   const rand = rng(5);
@@ -183,8 +192,13 @@ export const face = (kind = 'clean', skin = '#e0ac69') => make('face' + kind + s
   }
   g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 3;
   g.beginPath(); g.moveTo(64, 58); g.lineTo(60, 76); g.lineTo(68, 77); g.stroke(); // nose
-  g.strokeStyle = 'rgba(110,40,40,.85)'; g.lineWidth = 3;
-  g.beginPath(); g.moveTo(52, 90); g.quadraticCurveTo(64, 94, 76, 90); g.stroke(); // mouth
+  if (kind === 'grin') { // blinding country-club smile
+    g.fillStyle = '#7f1d1d'; g.beginPath(); g.moveTo(46, 86); g.quadraticCurveTo(64, 104, 82, 86); g.closePath(); g.fill();
+    g.fillStyle = '#ffffff'; g.fillRect(48, 86, 32, 5);
+  } else {
+    g.strokeStyle = 'rgba(110,40,40,.85)'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(52, 90); g.quadraticCurveTo(64, 94, 76, 90); g.stroke(); // mouth
+  }
   void skin;
 });
 

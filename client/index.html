@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
-  <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/jsm/" } }</script>
 </head>
 <body>
   <div id="game"></div>
@@ -19,6 +19,7 @@
   <div id="fps" class="hidden"></div>
   <div id="hud" class="hidden">
     <div id="crosshair"><i></i><i></i><i></i><i></i><b id="hitmarker"></b></div>
+    <div id="scope" class="hidden"><div class="scope-lens"></div></div>
     <div id="damage-vignette"></div>
     <div id="dmg-indicators"></div>
     <div id="hud-top">
@@ -30,6 +31,8 @@
     <div id="killfeed"></div>
     <div id="announce"></div>
     <div id="centermsg"></div>
+    <div id="popups"></div>
+    <div id="killicon"></div>
     <div id="hud-bottom-left">
       <div class="hp-label">PROPERTY VALUE</div>
       <div id="hp-bar"><div id="hp-fill"></div><span id="hp-text">100</span></div>
@@ -38,7 +41,7 @@
     <div id="hud-bottom-right">
       <div id="weapon-name">Leaf Blaster 3000</div>
       <div id="ammo"><b id="ammo-mag">30</b><span>/</span><span id="ammo-max">30</span></div>
-      <div id="weapon-slots"><span data-w="rifle">1 BLASTER</span><span data-w="shotgun">2 ENFORCER</span></div>
+      <div id="weapon-slots"><span data-w="rifle">1 BLASTER</span><span data-w="shotgun">2 ENFORCER</span><span data-w="deer">3 DEER RIFLE</span></div>
     </div>
     <div id="chatlog"></div>
     <input id="chat-input" class="hidden" maxlength="120" placeholder="Say something neighborly… (Enter to send)" autocomplete="off" />
@@ -129,7 +132,7 @@
       <div class="panel center-card">
         <div class="eyebrow">MATCH IN PROGRESS</div>
         <h2>Click to enter the neighborhood</h2>
-        <p>WASD move · Mouse aim · Click shoot · Space jump · Shift sprint · R reload · 1/2 swap · Tab scores · T chat · Esc menu</p>
+        <p>WASD move · Mouse aim · Click shoot · Right-click aim · Space jump · Shift sprint · R reload · 1/2/3 swap · Tab scores · T chat · Esc menu</p>
         <button id="btn-enter" class="btn primary">Enter</button>
       </div>
     </section>
@@ -212,7 +215,8 @@
             <li><kbd>Mouse</kbd> aim (click the game to lock)</li>
             <li><kbd>Left click</kbd> shoot</li>
             <li><kbd>Space</kbd> jump · <kbd>Shift</kbd> sprint</li>
-            <li><kbd>R</kbd> reload · <kbd>1</kbd>/<kbd>2</kbd>/<kbd>Q</kbd>/wheel swap weapon</li>
+            <li><kbd>Right click</kbd> aim / scope</li>
+            <li><kbd>R</kbd> reload · <kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd>/<kbd>Q</kbd>/wheel swap weapon</li>
             <li><kbd>Tab</kbd> scoreboard · <kbd>T</kbd> chat</li>
             <li><kbd>Esc</kbd> release mouse / menu</li>
           </ul>
@@ -224,7 +228,7 @@
             <li>Host picks Free-for-All or Team Deathmatch, kill limit and time limit.</li>
             <li>Every kill is a point. First to the kill limit wins — or most kills when time runs out.</li>
             <li>You respawn 3 seconds after being fined. Brief spawn protection ends when you shoot.</li>
-            <li><b>Leaf Blaster 3000</b>: automatic. <b>HOA Enforcer</b>: brutal up close.</li>
+            <li><b>Leaf Blaster 3000</b>: automatic. <b>HOA Enforcer</b>: brutal up close. <b>Deer Rifle</b>: right-click to scope, one headshot drops anyone.</li>
             <li>Trampolines are load-bearing. Headshots count extra.</li>
           </ul>
         </div>

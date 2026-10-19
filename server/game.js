@@ -5,12 +5,13 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import {
   PROTOCOL_VERSION, TICK_MS, PLAYER, RESPAWN_MS, SPAWN_PROTECT_MS, MAX_PLAYERS, NAME_MAX, CHAT_MAX,
-  WEAPONS, MODES, TEAMS, KILL_LIMITS, TIME_LIMITS_MIN, DEFAULT_CONFIG, COUNTDOWN_MS,
+  WEAPONS, WEAPON_ORDER, ADS_SPREAD_MULT, fullAmmo, MODES, TEAMS, KILL_LIMITS, TIME_LIMITS_MIN, DEFAULT_CONFIG, COUNTDOWN_MS,
   MAX_REWIND_MS, INTERP_DELAY_MS, MOVE_SLACK, MOVE_FLAT_TOLERANCE,
 } from '../client/shared/constants.js';
 import { MAPS, MAP_ORDER, getMap, ANNOUNCEMENTS, KILL_VERBS } from '../client/shared/map.js';
 import { isInsideSolid, raycastMap, rayPlayer } from '../client/shared/physics.js';
 
+void WEAPON_ORDER;
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const MAX_MSG_CHARS = 4096;
 const MAX_ROOMS = 500;
@@ -284,7 +285,7 @@ export class GameServer {
       lastStateAt: Date.now(),
       history: [],
       weapon: 'rifle',
-      ammo: { rifle: WEAPONS.rifle.mag, shotgun: WEAPONS.shotgun.mag },
+      ammo: fullAmmo(),
       reloadUntil: 0,
       nextFireAt: 0,
       respawnAt: 0,
@@ -509,7 +510,7 @@ export class GameServer {
     p.epoch++;
     p.lastStateAt = now;
     p.history = [{ t: now, x: s.x, y: 0, z: s.z }];
-    p.ammo = { rifle: WEAPONS.rifle.mag, shotgun: WEAPONS.shotgun.mag };
+    p.ammo = fullAmmo();
     p.reloadUntil = 0;
     p.nextFireAt = 0;
     p.invulnUntil = now + SPAWN_PROTECT_MS;
@@ -669,8 +670,10 @@ export class GameServer {
     const damage = new Map();
     const ends = [];
     const sprintPenalty = p.sprint ? 1.6 : 1;
+    const aimed = !!m.a && !p.sprint;
+    const baseSpread = w.scoped ? (aimed ? w.spread : w.hipSpread) : w.spread * (aimed ? ADS_SPREAD_MULT : 1);
     for (let i = 0; i < w.pellets; i++) {
-      const sd = this.spreadDir(d, w.spread * sprintPenalty);
+      const sd = this.spreadDir(d, baseSpread * sprintPenalty);
       const mapHit = raycastMap(origin, sd, w.range, getMap(room.config.map).boxes);
       let best = mapHit.dist;
       let bestQ = null, head = false;
@@ -706,7 +709,8 @@ export class GameServer {
         this.kill(p, q, info.head);
       }
     }
-    this.send(p.conn, { t: 'fired', s: isNum(m.s) ? m.s : 0, ammo: p.ammo[p.weapon], hit: total, hd: anyHead, k: killed, ends });
+    const victims = [...damage.keys()].filter((q) => q.invulnUntil <= now || q.hp <= 0).map((q) => q.id);
+    this.send(p.conn, { t: 'fired', s: isNum(m.s) ? m.s : 0, ammo: p.ammo[p.weapon], hit: total, hd: anyHead, k: killed, ends, v: victims });
     if (p.ammo[p.weapon] <= 0) this.onReload(p);
     return true;
   }
@@ -810,7 +814,7 @@ export class GameServer {
     const list = [];
     for (const q of room.players.values()) {
       if (!q.connected) continue;
-      const flags = (q.alive ? 1 : 0) | (q.sprint ? 2 : 0) | (q.weapon === 'shotgun' ? 4 : 0)
+      const flags = (q.alive ? 1 : 0) | (q.sprint ? 2 : 0) | (q.weapon === 'shotgun' ? 4 : 0) | (q.weapon === 'deer' ? 32 : 0)
         | (q.invulnUntil > now ? 8 : 0) | (q.reloadUntil > now ? 16 : 0);
       list.push([q.id, r2(q.pos.x), r2(q.pos.y), r2(q.pos.z), r2(q.yaw), r2(q.pitch), flags]);
     }

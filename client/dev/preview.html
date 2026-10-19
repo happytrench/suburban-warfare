@@ -39,12 +39,17 @@
   scene.add(sun);
   scene.add(buildWorld(map));
 
-  const chars = [
-    { x: 1.2, z: 23, yaw: Math.PI - 0.5, outfit: 'suburban', color: '#2f5d8a', name: 'Chad (HOA)' },
-    { x: 4.3, z: 21.5, yaw: Math.PI + 0.6, outfit: 'country', color: '#8f2a1e', name: 'Bubba' },
+  const chars = q.get('lineup') ? [
+    { id: 2, x: -1.8, z: 24, yaw: Math.PI, outfit: 'suburban', color: '#7dd3fc', name: 'Chad' },
+    { id: 3, x: -0.6, z: 24, yaw: Math.PI, outfit: 'suburban', color: '#f9a8d4', name: 'Karen' },
+    { id: 4, x: 0.6, z: 24, yaw: Math.PI, outfit: 'country', color: '#8f2a1e', name: 'Bubba' },
+    { id: 5, x: 1.8, z: 24, yaw: Math.PI, outfit: 'country', color: '#7a5a2a', name: 'Darlene' },
+  ] : [
+    { id: 2, x: 1.2, z: 23, yaw: Math.PI - 0.5, outfit: 'suburban', color: '#2f5d8a', name: 'Chad (HOA)' },
+    { id: 4, x: 4.3, z: 21.5, yaw: Math.PI + 0.6, outfit: 'country', color: '#8f2a1e', name: 'Bubba' },
   ];
   for (const c of chars) {
-    const m = buildCharacter({ id: c.x > 0 ? 3 : 4, color: c.color, outfit: c.outfit, quality });
+    const m = buildCharacter({ id: c.id, color: c.color, outfit: c.outfit, quality });
     m.position.set(c.x, 0, c.z); m.rotation.y = c.yaw;
     const tag = nameTag(c.name, c.color); tag.position.y = 2.25; m.add(tag);
     scene.add(m);

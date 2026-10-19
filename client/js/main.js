@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import {
   PLAYER, WEAPONS, WEAPON_ORDER, MODES, TEAMS, KILL_LIMITS, TIME_LIMITS_MIN,
-  INTERP_DELAY_MS, CLIENT_SEND_MS, RESPAWN_MS,
+  INTERP_DELAY_MS, CLIENT_SEND_MS, RESPAWN_MS, ADS_SPREAD_MULT, fullAmmo,
 } from '../shared/constants.js';
 import { MAPS, getMap } from '../shared/map.js';
 import { stepPlayer, raycastMap, rayPlayer } from '../shared/physics.js';
@@ -10,6 +10,7 @@ import { buildWorld, buildSky, setQuality } from './world.js';
 import { buildCharacter, nameTag, playerColor, buildGunModel, muzzleOffset } from './characters.js';
 import { Net } from './net.js';
 import { Sfx } from './audio.js';
+import { loadRig, rigReady, buildRiggedCharacter, animateRig } from './rig.js';
 
 // ======================================================================= helpers
 const $ = (id) => document.getElementById(id);
@@ -256,8 +257,9 @@ const S = {
 const me = {
   pos: new THREE.Vector3(), vel: new THREE.Vector3(), onGround: false,
   yaw: 0, pitch: 0, epoch: 0, alive: false, hp: 100,
-  weapon: 'rifle', ammo: { rifle: WEAPONS.rifle.mag, shotgun: WEAPONS.shotgun.mag },
+  weapon: 'rifle', ammo: fullAmmo(), ads: false, aimT: 0,
   reloadUntil: 0, nextFire: 0, seq: 0, lastSend: 0, recoil: 0, bob: 0, deathAt: 0, respawnAt: 0,
+  kickPitch: 0, kickYaw: 0, shake: 0, bloom: 0, lastShot: 0,
   killerId: 0, kills: 0, deaths: 0, landT: 0,
 };
 const remotes = new Map();
@@ -292,7 +294,7 @@ document.addEventListener('pointerlockchange', () => {
 
 document.addEventListener('mousemove', (e) => {
   if (!locked()) return;
-  const s = 0.0022 * settings.sens;
+  const s = 0.0022 * settings.sens * (camera.fov / settings.fov);
   me.yaw -= e.movementX * s;
   me.pitch -= e.movementY * s * (settings.invert ? -1 : 1);
   me.pitch = clamp(me.pitch, -1.5, 1.5);
@@ -300,8 +302,10 @@ document.addEventListener('mousemove', (e) => {
 renderer.domElement.addEventListener('mousedown', (e) => {
   if (!locked()) { if (inMatch() && screen === null) requestLock(); return; }
   if (e.button === 0) { mouseDown = true; firedThisClick = false; }
+  if (e.button === 2) me.ads = true;
 });
-document.addEventListener('mouseup', (e) => { if (e.button === 0) mouseDown = false; });
+document.addEventListener('mouseup', (e) => { if (e.button === 0) mouseDown = false; if (e.button === 2) me.ads = false; });
+document.addEventListener('contextmenu', (e) => { if (locked() || inMatch()) e.preventDefault(); });
 document.addEventListener('wheel', (e) => {
   if (!locked() || !me.alive) return;
   const i = WEAPON_ORDER.indexOf(me.weapon);
@@ -320,7 +324,8 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'KeyR') reload();
   if (e.code === 'Digit1') switchWeapon('rifle');
   if (e.code === 'Digit2') switchWeapon('shotgun');
-  if (e.code === 'KeyQ') switchWeapon(me.weapon === 'rifle' ? 'shotgun' : 'rifle');
+  if (e.code === 'Digit3') switchWeapon('deer');
+  if (e.code === 'KeyQ') switchWeapon(WEAPON_ORDER[(WEAPON_ORDER.indexOf(me.weapon) + 1) % WEAPON_ORDER.length]);
   if (e.code === 'KeyT' || e.code === 'Enter') { e.preventDefault(); openChat(); }
   if (e.code === 'Space') e.preventDefault();
 });
@@ -395,14 +400,15 @@ function tryFire(now) {
   me.ammo[me.weapon]--;
   me.seq++;
   camera.getWorldDirection(_dir);
-  net.send({ t: 'f', e: me.epoch, w: me.weapon, d: [_dir.x, _dir.y, _dir.z], s: me.seq });
+  const aimed = me.aimT > 0.7 && !me.sprinting;
+  net.send({ t: 'f', e: me.epoch, w: me.weapon, d: [_dir.x, _dir.y, _dir.z], s: me.seq, a: aimed });
 
   // immediate local feedback (server decides actual hits)
   const origin = { x: me.pos.x, y: me.pos.y + PLAYER.eye, z: me.pos.z };
   // tracer starts just in front/right/below the camera, where the viewmodel muzzle appears
   _from.set(0.18, -0.16, -0.8).applyQuaternion(camera.quaternion).add(camera.position);
   for (let i = 0; i < w.pellets; i++) {
-    const sp = w.spread * (me.sprinting ? 1.6 : 1);
+    const sp = (w.scoped ? (aimed ? w.spread : w.hipSpread) : w.spread * (aimed ? ADS_SPREAD_MULT : 1)) * (me.sprinting ? 1.6 : 1);
     const d = new THREE.Vector3(_dir.x + (Math.random() - 0.5) * sp * 2, _dir.y + (Math.random() - 0.5) * sp * 2, _dir.z + (Math.random() - 0.5) * sp * 2).normalize();
     const hit = raycastMap(origin, d, w.range, activeMap().boxes);
     let best = hit.dist, kind = hit.box ? 2 : 0;
@@ -415,14 +421,18 @@ function tryFire(now) {
     tracer(_from, _to);
     if (kind === 2) impact(_to, 2);
   }
-  me.recoil = Math.min(me.recoil + (me.weapon === 'shotgun' ? 1 : 0.35), 1.4);
-  me.pitch = clamp(me.pitch + (me.weapon === 'shotgun' ? 0.045 : 0.012), -1.5, 1.5);
-  me.yaw += (Math.random() - 0.5) * (me.weapon === 'shotgun' ? 0.02 : 0.008);
+  const kick = { rifle: [0.35, 0.012], shotgun: [1, 0.045], deer: [1.3, 0.06] }[me.weapon];
+  me.recoil = Math.min(me.recoil + kick[0], 1.6);
+  const k = kick[1] * (aimed ? 0.6 : 1);
+  me.kickPitch += k;                                  // visual kick that recovers...
+  me.pitch = clamp(me.pitch + k * 0.25, -1.5, 1.5);   // ...and a little that stays (pull down to control)
+  me.kickYaw += (Math.random() - 0.5) * k * 0.6;
+  me.shake = Math.min(1, me.shake + (me.weapon === 'rifle' ? 0.12 : 0.5));
+  me.bloom = Math.min(1, me.bloom + (me.weapon === 'rifle' ? 0.18 : 0.6));
+  me.lastShot = now;
   muzzleFlash.visible = true; muzzleFlash.userData.t = 0.05;
   flashLight.position.copy(camera.position); flashLight.intensity = 6;
   sfx.shot(me.weapon);
-  $('crosshair').classList.add('spread');
-  setTimeout(() => $('crosshair').classList.remove('spread'), 90);
   if (me.ammo[me.weapon] <= 0) setTimeout(reload, 150);
   updateHudWeapon();
 }
@@ -436,7 +446,8 @@ function ensureRemote(id) {
   const outfit = outfitFor(id, team);
   if (r && (r.color !== color || r.outfit !== outfit || r.quality !== settings.quality)) { removeRemote(id); r = null; }
   if (!r) {
-    const obj = buildCharacter({ id, color, outfit, quality: settings.quality });
+    const useRig = rigReady() && settings.quality === 'high';
+    const obj = useRig ? buildRiggedCharacter({ id, color, outfit }) : buildCharacter({ id, color, outfit, quality: settings.quality });
     const tag = nameTag(info ? info.name : `Neighbor ${id}`, color);
     tag.position.y = 2.25;
     obj.add(tag);
@@ -479,16 +490,30 @@ function updateRemotes(dt) {
     const alive = (s.flags & 1) !== 0;
     r.alive = alive;
     const ud = r.obj.userData;
-    ud.rifle.visible = !(s.flags & 4);
+    const rig = ud.rig;
+    ud.rifle.visible = !(s.flags & 4) && !(s.flags & 32);
     ud.shotgun.visible = !!(s.flags & 4);
+    ud.deer.visible = !!(s.flags & 32);
     ud.gun.rotation.x = -s.pitch * 0.8;
     ud.armR.rotation.x = -1.15 - s.pitch * 0.8;
     ud.armL.rotation.x = -1.25 - s.pitch * 0.8;
     ud.head.rotation.x = -s.pitch * 0.5;
+    if (r.flash > 0 || r.flashing) {
+      r.flash = Math.max(0, (r.flash || 0) - dt);
+      const on = r.flash > 0;
+      if (on !== r.flashing) {
+        r.obj.traverse((o) => { if (o.isMesh && o.material && o.material.emissive) { o.material.emissive.set(on ? '#ff2020' : '#000000'); o.material.emissiveIntensity = on ? 0.9 : 1; } });
+        r.flashing = on;
+      }
+    }
+    r.flinch = Math.max(0, (r.flinch || 0) - dt * 6);
+    ud.hips.rotation.x = -r.flinch * 0.18;
     const speed = r.lastPos.distanceTo(r.obj.position) / Math.max(dt, 0.001);
     r.walk += dt * Math.min(speed, 10) * 1.6;
     const swing = Math.sin(r.walk) * Math.min(speed / 6, 1) * 0.7;
     ud.legs[0].rotation.x = swing; ud.legs[1].rotation.x = -swing;
+    r.speedS = (r.speedS || 0) * 0.85 + Math.min(speed, 12) * 0.15;   // smoothed for animation blending
+    if (rig) animateRig(rig, alive ? r.speedS : 0, dt, s.pitch, alive);
     // death: fall over; spawn protection: blink
     r.fall = alive ? Math.max(0, r.fall - dt * 4) : Math.min(1, r.fall + dt * 3);
     ud.hips.parent.rotation.x = -r.fall * Math.PI / 2;
@@ -540,7 +565,19 @@ function updateCamera(dt) {
     const bobY = me.onGround ? Math.sin(me.bob * 2) * 0.04 * Math.min(1, Math.hypot(me.vel.x, me.vel.z) / 6) : 0;
     me.landT = Math.max(0, me.landT - dt);
     camera.position.set(me.pos.x, me.pos.y + PLAYER.eye + bobY - me.landT * 0.4, me.pos.z);
-    camera.rotation.set(me.pitch, me.yaw, 0);
+    // recoil recovers smoothly back to where you were aiming; shake decays fast
+    me.kickPitch *= Math.exp(-dt * 11);
+    me.kickYaw *= Math.exp(-dt * 11);
+    me.shake = Math.max(0, me.shake - dt * 5);
+    const sh = me.shake * me.shake * 0.012;
+    camera.rotation.set(me.pitch + me.kickPitch + (Math.random() - 0.5) * sh, me.yaw + me.kickYaw + (Math.random() - 0.5) * sh, (Math.random() - 0.5) * sh * 0.5);
+    // crosshair bloom from movement + firing, tight when aiming
+    me.bloom = Math.max(0, me.bloom - dt * 3.2);
+    const move = Math.min(1, Math.hypot(me.vel.x, me.vel.z) / PLAYER.sprintSpeed) * (me.onGround ? 1 : 1.6);
+    const gap = (4 + move * 9 + me.bloom * 10) * (1 - me.aimT * 0.7);
+    const ch = $('crosshair').children;
+    ch[0].style.transform = `translateY(${-gap}px)`; ch[1].style.transform = `translateY(${gap}px)`;
+    ch[2].style.transform = `translateX(${-gap}px)`; ch[3].style.transform = `translateX(${gap}px)`;
   } else {
     // death cam: drift up and look down at where you fell
     const t = Math.min(1, (performance.now() - me.deathAt) / 1200);
@@ -550,7 +587,16 @@ function updateCamera(dt) {
 }
 
 function updateViewmodel(dt, now) {
-  const showVm = me.alive && inMatch();
+  // aim-down-sights: smooth zoom; sprinting or reloading drops aim
+  const wantAim = me.ads && me.alive && inMatch() && !me.sprinting && !me.reloadUntil;
+  me.aimT = clamp(me.aimT + (wantAim ? dt * 7 : -dt * 9), 0, 1);
+  const scoped = me.weapon === 'deer' && me.aimT > 0.85;
+  const zoomFov = me.weapon === 'deer' ? 22 : settings.fov * 0.72;
+  const targetFov = settings.fov + (zoomFov - settings.fov) * me.aimT;
+  if (Math.abs(camera.fov - targetFov) > 0.05) { camera.fov = targetFov; camera.updateProjectionMatrix(); }
+  $('scope').classList.toggle('hidden', !scoped);
+  $('hud').classList.toggle('scoped', scoped);
+  const showVm = me.alive && inMatch() && !scoped;
   viewmodel.visible = showVm;
   if (!showVm) return;
   for (const w of WEAPON_ORDER) vmGuns[w].visible = w === me.weapon;
@@ -568,7 +614,8 @@ function updateViewmodel(dt, now) {
       updateHudWeapon();
     } else reloadDip = Math.sin((1 - left / total) * Math.PI);
   }
-  viewmodel.position.set(0.2 + sway, -0.19 - Math.abs(sway) - reloadDip * 0.18 - me.swapT * 0.8 + (me.sprinting ? -0.03 : 0), -0.42 + me.recoil * 0.05);
+  const a = me.aimT;
+  viewmodel.position.set((0.2 + sway) * (1 - a), (-0.19 - Math.abs(sway)) * (1 - a) + (-0.11) * a - reloadDip * 0.18 - me.swapT * 0.8 + (me.sprinting ? -0.03 : 0), -0.42 + me.recoil * 0.05);
   viewmodel.rotation.set(me.recoil * 0.12 + reloadDip * 0.7, (me.sprinting ? 0.35 : 0) + reloadDip * 0.3, reloadDip * 0.4);
   muzzleFlash.position.copy(muzzleOffset(me.weapon)).multiply(new THREE.Vector3(1, 1, -1));
   if (muzzleFlash.visible) {
@@ -685,6 +732,22 @@ function announce(msg, hoa = false) {
   if (settings.voice && 'speechSynthesis' in window) {
     try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(msg); u.rate = 1.05; u.volume = settings.vol; speechSynthesis.speak(u); } catch { /* no voice */ }
   }
+}
+
+function popup(text, cls = '') {
+  const d = document.createElement('div');
+  d.textContent = text;
+  if (cls) d.className = cls;
+  $('popups').appendChild(d);
+  while ($('popups').children.length > 3) $('popups').firstChild.remove();
+  setTimeout(() => d.remove(), 1300);
+}
+
+function flashRemote(id) {
+  const r = remotes.get(id);
+  if (!r) return;
+  r.flash = 0.12;
+  r.flinch = 1;
 }
 
 function hitmarker(kind) {
@@ -847,7 +910,7 @@ net.on('spawn', (m) => {
     me.alive = true;
     me.hp = 100;
     me.reloadUntil = 0;
-    me.ammo = { rifle: WEAPONS.rifle.mag, shotgun: WEAPONS.shotgun.mag };
+    me.ammo = fullAmmo();
     $('dead').classList.add('hidden');
     updateHudHp(); updateHudWeapon();
   } else {
@@ -891,7 +954,8 @@ net.on('fired', (m) => {
   if (!me.reloadUntil) me.ammo[me.weapon] = Math.min(me.ammo[me.weapon], m.ammo);
   if (m.hit > 0) {
     hitmarker(m.k ? 'kill' : m.hd ? 'head' : '');
-    sfx.hit(m.hd);
+    if (!m.k) sfx.hit(m.hd);
+    for (const id of m.v || []) flashRemote(id);
     for (const e of m.ends) if (e[3] === 1) impact({ x: e[0], y: e[1], z: e[2] }, 1);
   }
   updateHudWeapon();
@@ -920,6 +984,7 @@ net.on('dmg', (m) => {
   me.hp = m.hp;
   updateHudHp();
   damageIndicator(m.from[0], m.from[1]);
+  me.shake = Math.min(1, me.shake + 0.7);
   sfx.hurt();
 });
 
@@ -937,13 +1002,19 @@ net.on('kill', (m) => {
   const mineK = m.k === S.myId, mineV = m.v === S.myId;
   const kc = playerColor(m.k, playerInfo(m.k)?.team, mode());
   const vc = playerColor(m.v, playerInfo(m.v)?.team, mode());
-  feed(`<b style="color:${kc}">${esc(m.kn)}</b> <span class="verb">${esc(m.verb)}</span> <b style="color:${vc}">${esc(m.vn)}</b> ${m.hd ? '🎯' : ''} <small>[${m.w === 'shotgun' ? 'ENFORCER' : 'BLASTER'}]</small>`, mineK || mineV);
+  feed(`<b style="color:${kc}">${esc(m.kn)}</b> <span class="verb">${esc(m.verb)}</span> <b style="color:${vc}">${esc(m.vn)}</b> ${m.hd ? '🎯' : ''} <small>[${{ shotgun: 'ENFORCER', deer: 'DEER RIFLE' }[m.w] || 'BLASTER'}]</small>`, mineK || mineV);
   if (mineV) {
     die(m.k);
     $('dead-by').innerHTML = `You were ${esc(m.pverb || m.verb)} by <b>${esc(m.kn)}</b>${m.hd ? ' (headshot)' : ''}.`;
     $('dead-fine').textContent = `Fine issued: $${m.fine}. Payable to the HOA within 30 days.`;
   }
-  if (mineK) { hitmarker('kill'); sfx.kill(); }
+  if (mineK) {
+    hitmarker('kill'); sfx.kill(m.hd);
+    const ki = $('killicon'); ki.className = ''; void ki.offsetWidth; ki.className = 'show';
+    popup(`+100 ${m.vn.toUpperCase()} ${m.verb.split(' ')[0].toUpperCase()}`, 'big');
+    if (m.hd) popup('HEADSHOT +50', 'head');
+    const me2 = playerInfo(S.myId); if (me2 && (me2.k + 1) % 3 === 0) popup(`${me2.k + 1} KILL STREAK`);
+  }
   const r = remotes.get(m.v);
   if (r) { r.alive = false; burst(r.obj.position.x, r.obj.position.y + 1.2, r.obj.position.z, ['#ffffff', '#fde68a', '#fecaca', '#bbf7d0'], 22, 5, 1.4); }
 });
@@ -1148,7 +1219,9 @@ async function boot() {
     applyRenderSettings();
     resize();
     buildViewmodels();
-    await step(35, 'Building houses (permits pending)…');
+    await step(25, 'Hiring neighbors (loading characters)…');
+    await Promise.race([loadRig(), new Promise((r) => setTimeout(r, 8000))]);
+    await step(45, 'Building houses (permits pending)…');
     loadMap('culdesac');
     await step(80, 'Parking oversized SUVs…');
     renderer.compile(scene, camera);

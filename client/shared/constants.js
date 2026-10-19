@@ -31,9 +31,9 @@ export const WEAPONS = {
   rifle: {
     id: 'rifle',
     name: 'Leaf Blaster 3000',
-    damage: 17,
-    headMult: 1.8,
-    cooldownMs: 110,
+    damage: 22,
+    headMult: 1.6,
+    cooldownMs: 100,
     mag: 30,
     reloadMs: 1700,
     spread: 0.012,
@@ -46,7 +46,7 @@ export const WEAPONS = {
   shotgun: {
     id: 'shotgun',
     name: 'HOA Enforcer',
-    damage: 12,
+    damage: 15,
     headMult: 1.4,
     cooldownMs: 850,
     mag: 6,
@@ -58,8 +58,27 @@ export const WEAPONS = {
     falloffMin: 0.4,
     auto: false,
   },
+  deer: {
+    id: 'deer',
+    name: 'Deer Rifle (.30-06)',
+    damage: 75,
+    headMult: 2.0,
+    cooldownMs: 1100,
+    mag: 5,
+    reloadMs: 2600,
+    spread: 0.0025,      // aimed through the scope
+    hipSpread: 0.06,     // hip-fire is a gamble
+    pellets: 1,
+    range: 240,
+    falloffStart: 240,
+    falloffMin: 1,
+    auto: false,
+    scoped: true,
+  },
 };
-export const WEAPON_ORDER = ['rifle', 'shotgun'];
+export const WEAPON_ORDER = ['rifle', 'shotgun', 'deer'];
+export const ADS_SPREAD_MULT = 0.55;   // aiming down sights tightens spread
+export const fullAmmo = () => Object.fromEntries(WEAPON_ORDER.map((w) => [w, WEAPONS[w].mag]));
 
 export const MODES = {
   ffa: { id: 'ffa', name: 'Free-for-All' },
