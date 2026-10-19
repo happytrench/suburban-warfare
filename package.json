@@ -1,0 +1,18 @@
+{
+  "name": "suburban-warfare",
+  "version": "0.2.0",
+  "description": "SUBURBAN WARFARE \u2014 a chaotic multiplayer browser FPS: Pristine Pines HOA vs the Backroad Boys.",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node --watch-path=server --watch-path=client/shared server/index.js --dev",
+    "build": "node scripts/build.js",
+    "start": "node server/index.js",
+    "lint": "node scripts/check.js",
+    "test": "node --test test/*.test.js"
+  }
+}

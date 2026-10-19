@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SUBURBAN WARFARE</title>
+  <meta name="description" content="A chaotic multiplayer first-person shooter set in a cul-de-sac governed by an extremely strict HOA." />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+</head>
+<body>
+  <div id="game"></div>
+
+  <!-- Crosshair + in-game HUD -->
+  <div id="fps" class="hidden"></div>
+  <div id="hud" class="hidden">
+    <div id="crosshair"><i></i><i></i><i></i><i></i><b id="hitmarker"></b></div>
+    <div id="damage-vignette"></div>
+    <div id="dmg-indicators"></div>
+    <div id="hud-top">
+      <div id="hud-mode"></div>
+      <div id="hud-timer">0:00</div>
+      <div id="hud-limit"></div>
+    </div>
+    <div id="hud-teamscore" class="hidden"><span class="t1"></span><span class="t2"></span></div>
+    <div id="killfeed"></div>
+    <div id="announce"></div>
+    <div id="centermsg"></div>
+    <div id="hud-bottom-left">
+      <div class="hp-label">PROPERTY VALUE</div>
+      <div id="hp-bar"><div id="hp-fill"></div><span id="hp-text">100</span></div>
+      <div id="hud-kd">K <b id="hud-k">0</b> · D <b id="hud-d">0</b></div>
+    </div>
+    <div id="hud-bottom-right">
+      <div id="weapon-name">Leaf Blaster 3000</div>
+      <div id="ammo"><b id="ammo-mag">30</b><span>/</span><span id="ammo-max">30</span></div>
+      <div id="weapon-slots"><span data-w="rifle">1 BLASTER</span><span data-w="shotgun">2 ENFORCER</span></div>
+    </div>
+    <div id="chatlog"></div>
+    <input id="chat-input" class="hidden" maxlength="120" placeholder="Say something neighborly… (Enter to send)" autocomplete="off" />
+    <div id="dead" class="hidden">
+      <div class="ticket">
+        <div class="ticket-head">NOTICE OF VIOLATION</div>
+        <div id="dead-by">You were fined.</div>
+        <div id="dead-fine"></div>
+        <div id="dead-timer">Respawning in 3…</div>
+      </div>
+    </div>
+    <div id="scoreboard" class="hidden panel"></div>
+  </div>
+
+  <!-- Screens -->
+  <div id="screens">
+    <section id="loading" class="screen">
+      <div class="logo"><span>SUBURBAN</span><span>WARFARE</span></div>
+      <div class="loading-bar"><div id="loading-fill"></div></div>
+      <p id="loading-text">Mowing the lawns…</p>
+    </section>
+
+    <section id="menu" class="screen hidden">
+      <div class="menu-wrap">
+        <div class="logo big"><span>SUBURBAN</span><span>WARFARE</span></div>
+        <p class="tagline">Property values are about to drop.</p>
+        <div class="panel notice">
+          <div class="pin"></div>
+          <label class="field">
+            <span>Your name on the mailbox</span>
+            <input id="name-input" maxlength="16" placeholder="e.g. Dave from #12" autocomplete="off" />
+          </label>
+          <button id="btn-play" class="btn primary">Quick Play</button>
+          <div class="row">
+            <button id="btn-create" class="btn">Create Room</button>
+          </div>
+          <div class="row join-row">
+            <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" />
+            <button id="btn-join" class="btn">Join Room</button>
+          </div>
+          <div class="row small">
+            <button id="btn-settings" class="btn ghost">Settings</button>
+            <button id="btn-howto" class="btn ghost">Controls &amp; Rules</button>
+          </div>
+          <div id="menu-error" class="error hidden"></div>
+        </div>
+        <div class="status-line"><span id="server-dot" class="dot"></span><span id="server-status">Connecting to the neighborhood…</span></div>
+      </div>
+    </section>
+
+    <section id="lobby" class="screen hidden">
+      <div class="lobby-wrap">
+        <div class="panel lobby-main">
+          <div class="lobby-head">
+            <div>
+              <div class="eyebrow">ROOM CODE</div>
+              <div id="lobby-code" class="code">----</div>
+            </div>
+            <div class="lobby-actions">
+              <button id="btn-copy-code" class="btn small">Copy code</button>
+              <button id="btn-copy-link" class="btn small">Copy invite link</button>
+            </div>
+          </div>
+          <p class="invite-help">Send your friends the invite link (or the code). They open the game, type the code under <b>Join Room</b>, and they're in. Works from any house with internet.</p>
+          <div class="eyebrow">VOTE FOR THE MAP</div>
+          <div id="lobby-vote"></div>
+          <div id="lobby-config"></div>
+          <div id="lobby-teams" class="hidden">
+            <button class="btn small team-btn" data-team="1">Join Pristine Pines HOA</button>
+            <button class="btn small team-btn" data-team="2">Join Unmowed Rebels</button>
+          </div>
+          <ul id="lobby-players"></ul>
+          <div class="lobby-bottom">
+            <button id="btn-leave" class="btn ghost">Leave</button>
+            <div class="status-line inline"><span id="lobby-dot" class="dot ok"></span><span id="lobby-status">Connected</span></div>
+            <button id="btn-start" class="btn primary">Start Match</button>
+          </div>
+        </div>
+        <div class="panel lobby-chat">
+          <div class="eyebrow">NEIGHBORHOOD GROUP CHAT</div>
+          <div id="lobby-chatlog"></div>
+          <input id="lobby-chat-input" maxlength="120" placeholder="Type a message, press Enter" autocomplete="off" />
+        </div>
+      </div>
+    </section>
+
+    <section id="click-to-play" class="screen hidden overlay-dim">
+      <div class="panel center-card">
+        <div class="eyebrow">MATCH IN PROGRESS</div>
+        <h2>Click to enter the neighborhood</h2>
+        <p>WASD move · Mouse aim · Click shoot · Space jump · Shift sprint · R reload · 1/2 swap · Tab scores · T chat · Esc menu</p>
+        <button id="btn-enter" class="btn primary">Enter</button>
+      </div>
+    </section>
+
+    <section id="pause" class="screen hidden overlay-dim">
+      <div class="panel center-card">
+        <div class="eyebrow">PAUSED (the neighbors are not)</div>
+        <h2>Menu</h2>
+        <button id="btn-resume" class="btn primary">Resume</button>
+        <button id="btn-pause-settings" class="btn">Settings</button>
+        <button id="btn-pause-leave" class="btn ghost">Leave match</button>
+        <p class="hint">Room code: <b id="pause-code"></b></p>
+      </div>
+    </section>
+
+    <section id="end" class="screen hidden overlay-dim">
+      <div class="panel center-card wide">
+        <div class="eyebrow">THE HOA HAS RULED</div>
+        <h2 id="end-title">Winner</h2>
+        <p id="end-sub"></p>
+        <table id="end-board"></table>
+        <div class="row">
+          <button id="btn-rematch" class="btn primary">Rematch</button>
+          <button id="btn-to-lobby" class="btn">Return to Lobby</button>
+          <button id="btn-end-leave" class="btn ghost">Leave</button>
+        </div>
+        <p id="end-wait" class="hint hidden">Waiting for the host to start a rematch…</p>
+      </div>
+    </section>
+
+    <section id="conn" class="screen hidden overlay-dim">
+      <div class="panel center-card">
+        <div class="eyebrow" id="conn-eyebrow">CONNECTION LOST</div>
+        <h2 id="conn-title">Reconnecting…</h2>
+        <p id="conn-text">Hang tight — trying to get you back into your match.</p>
+        <button id="btn-conn-menu" class="btn ghost">Back to menu</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- Modals -->
+  <div id="settings" class="modal hidden">
+    <div class="panel center-card wide">
+      <h2>Settings</h2>
+      <div class="settings-grid">
+        <label>Mouse sensitivity <input type="range" id="set-sens" min="0.2" max="3" step="0.05" /><output id="out-sens"></output></label>
+        <label>Field of view <input type="range" id="set-fov" min="60" max="110" step="1" /><output id="out-fov"></output></label>
+        <label>Volume <input type="range" id="set-vol" min="0" max="1" step="0.05" /><output id="out-vol"></output></label>
+        <label>Invert mouse Y <input type="checkbox" id="set-invert" /></label>
+        <label>Announcer voice <input type="checkbox" id="set-voice" /></label>
+        <label>Graphics
+          <select id="set-quality">
+            <option value="high">High (realistic)</option>
+            <option value="low">Low (fast)</option>
+          </select>
+        </label>
+        <label>Shadows <input type="checkbox" id="set-shadows" /></label>
+        <label>Show FPS <input type="checkbox" id="set-fps" /></label>
+        <label>Render scale
+          <select id="set-scale">
+            <option value="0.6">Potato (60%)</option>
+            <option value="0.8">Low (80%)</option>
+            <option value="1">Normal (100%)</option>
+            <option value="1.5">Sharp (150%)</option>
+          </select>
+        </label>
+      </div>
+      <button id="btn-settings-close" class="btn primary">Done</button>
+    </div>
+  </div>
+
+  <div id="howto" class="modal hidden">
+    <div class="panel center-card wide">
+      <h2>Controls &amp; Rules</h2>
+      <div class="howto-grid">
+        <div>
+          <h3>Controls</h3>
+          <ul class="keys">
+            <li><kbd>W A S D</kbd> move</li>
+            <li><kbd>Mouse</kbd> aim (click the game to lock)</li>
+            <li><kbd>Left click</kbd> shoot</li>
+            <li><kbd>Space</kbd> jump · <kbd>Shift</kbd> sprint</li>
+            <li><kbd>R</kbd> reload · <kbd>1</kbd>/<kbd>2</kbd>/<kbd>Q</kbd>/wheel swap weapon</li>
+            <li><kbd>Tab</kbd> scoreboard · <kbd>T</kbd> chat</li>
+            <li><kbd>Esc</kbd> release mouse / menu</li>
+          </ul>
+        </div>
+        <div>
+          <h3>Rules of Pristine Pines</h3>
+          <ul>
+            <li>Host creates a room and shares the code.</li>
+            <li>Host picks Free-for-All or Team Deathmatch, kill limit and time limit.</li>
+            <li>Every kill is a point. First to the kill limit wins — or most kills when time runs out.</li>
+            <li>You respawn 3 seconds after being fined. Brief spawn protection ends when you shoot.</li>
+            <li><b>Leaf Blaster 3000</b>: automatic. <b>HOA Enforcer</b>: brutal up close.</li>
+            <li>Trampolines are load-bearing. Headshots count extra.</li>
+          </ul>
+        </div>
+      </div>
+      <button id="btn-howto-close" class="btn primary">Got it</button>
+    </div>
+  </div>
+
+  <div id="toast" class="hidden"></div>
+
+  <noscript>SUBURBAN WARFARE needs JavaScript and WebGL.</noscript>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

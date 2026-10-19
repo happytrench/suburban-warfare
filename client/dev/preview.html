@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Art preview</title>
+  <style>html,body{margin:0;overflow:hidden;background:#000}</style>
+  <script type="importmap">{ "imports": { "three": "../vendor/three.module.min.js" } }</script>
+</head>
+<body>
+<script type="module">
+  // Dev-only art preview: renders a map from a fixed camera. Usage: /dev/preview.html?map=culdesac&shot=0
+  import * as THREE from 'three';
+  import { getMap } from '../shared/map.js';
+  import { buildWorld, buildSky, setQuality } from '../js/world.js';
+  import { buildCharacter, nameTag } from '../js/characters.js';
+
+  const q = new URLSearchParams(location.search);
+  const map = getMap(q.get('map') || 'culdesac');
+  const quality = q.get('q') === 'low' ? 'low' : 'high';
+  setQuality(quality);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  if (quality === 'high') { renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05; }
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  const t = map.theme;
+  scene.fog = new THREE.Fog(t.fog, t.fogNear ?? 45, t.fogFar ?? 170);
+  scene.add(buildSky(t));
+  scene.add(new THREE.HemisphereLight(t.hemiSky || '#dff1ff', t.hemiGround, t.hemiIntensity ?? 1.5));
+  const sun = new THREE.DirectionalLight(t.sunColor || '#ffe2b0', t.sunIntensity ?? 3);
+  if (t.exposure) renderer.toneMappingExposure = t.exposure;
+  sun.position.set(...(t.sunPos || [55, 38, 35]));
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
+  Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, far: 200 });
+  scene.add(sun);
+  scene.add(buildWorld(map));
+
+  const chars = [
+    { x: 1.2, z: 23, yaw: Math.PI - 0.5, outfit: 'suburban', color: '#2f5d8a', name: 'Chad (HOA)' },
+    { x: 4.3, z: 21.5, yaw: Math.PI + 0.6, outfit: 'country', color: '#8f2a1e', name: 'Bubba' },
+  ];
+  for (const c of chars) {
+    const m = buildCharacter({ id: c.x > 0 ? 3 : 4, color: c.color, outfit: c.outfit, quality });
+    m.position.set(c.x, 0, c.z); m.rotation.y = c.yaw;
+    const tag = nameTag(c.name, c.color); tag.position.y = 2.25; m.add(tag);
+    scene.add(m);
+  }
+  const shots = [
+    { p: [3.4, 1.9, 28], t: [1.5, 1.4, 10] },
+    { p: [-40, 26, 48], t: [0, 0, -6] },
+    { p: [0, 60, 40], t: [0, 0, -4] },
+  ];
+  const s = shots[Number(q.get('shot') || 0)] || shots[0];
+  const cam = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 900);
+  cam.position.set(...s.p); cam.lookAt(...s.t);
+  renderer.render(scene, cam);
+  const info = renderer.info.render;
+  document.title = `done calls=${info.calls} tris=${info.triangles}`;
+  window.__done = true;
+</script>
+</body>
+</html>
