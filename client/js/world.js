@@ -530,7 +530,7 @@ function buildKind(B, b) {
       B.cyl(b.w / 2, b.w / 2, b.h, b.x, 0, b.z, mat('#c9b99a', TX.brick()), 8);
       B.cyl(0.6, b.w / 2 + 1.2, 2.2, b.x, b.h, b.z, mat('#2f3338', TX.shingles()), 8);
       B.box(1.6, 2.4, 0.2, b.x - b.w / 2 + 0.1, 0, b.z, mat('#7c2d12'), 0, Math.PI / 2);
-      const sg = signMesh('LODGE', 2.4, 0.5, { bg: '#1f2937', fg: '#facc15', border: null, w: 384, h: 80 });
+      const sg = signMesh(b.label || 'LODGE', 3.2, 0.5, { bg: '#1f2937', fg: '#facc15', border: null, w: 384, h: 80 });
       sg.position.set(b.x - b.w / 2 - 0.05, 3.1, b.z); sg.rotation.y = -Math.PI / 2; B.dynamic.add(sg);
       return;
     }
@@ -590,6 +590,12 @@ function buildKind(B, b) {
       const back = b.x + (facingEast ? -1 : 1) * (b.w / 2);
       for (const zz of [-b.d / 2, 0, b.d / 2]) B.box(0.2, b.h + 2, 0.2, back, 0, b.z + zz, dark());
       B.box(b.w + 1, 0.2, b.d + 1, b.x, b.h + 2, b.z, mat('#9aa3ad', null, { roughness: 0.35, metalness: 0.6 }));
+      return;
+    }
+    case 'streetsign': {
+      B.box(0.1, b.h, 0.1, b.x, 0, b.z, mat('#9ca3af', null, { roughness: 0.4, metalness: 0.6 }));
+      const sg = signMesh(b.text || '', 1.9, 0.32, { bg: '#1f6b3a', fg: '#ffffff', border: '#ffffff', w: 512, h: 86, font: 'Rubik, Arial, sans-serif' });
+      sg.position.set(b.x, b.h - 0.15, b.z); B.dynamic.add(sg);
       return;
     }
     case 'jersey': return sz(mat('#c8c4bb', TX.concrete()), 1.5);

@@ -150,7 +150,9 @@ function buildCuldesac() {
   // barricade at the neighbourhood entrance
   add('barricade', -2.6, 50.5, 4.5, 0.6, 1.1);
   add('barricade', 2.6, 50.5, 4.5, 0.6, 1.1);
-  add('sign', -8.5, 52, 0.4, 0.4, 3.2, { text: 'WELCOME TO PRISTINE PINES' });
+  add('sign', -8.5, 52, 0.4, 0.4, 3.2, { text: 'PRISTINE PINES · SULLIVAN, IN' });
+  add('streetsign', 8.2, 48, 0.2, 0.2, 3, { text: 'N SKYLARK DR' });
+  add('streetsign', -16.5, 4, 0.2, 0.2, 3, { text: 'W GREENBRIER LN' });
   // streetlights
   for (const [x, z] of [[-7.2, 0], [7.2, 0], [-7.2, 30], [7.2, 30], [0, -21.8]]) add('lamp', x, z, 0.3, 0.3, 5);
 
@@ -216,8 +218,8 @@ function helpers() {
   return { boxes, decor, add, dec, boundary, tree, mirrorSpawns };
 }
 
-// ---------------------------------------------------------------------------- BUCK CREEK COUNTRY CLUB
-// Inspired by the real golf course on W Wolfe St in Sullivan, Indiana: long fairways split by
+// ---------------------------------------------------------------------------- SULLIVAN ELKS COUNTRY CLUB
+// Based on the real golf course on W Wolfe St in Sullivan, Indiana: long fairways split by
 // thick tree lines, Buck Creek cutting diagonally past the clubhouse, a big parking lot, and the
 // round lodge next door. Scaled down to an arena, with real-world object sizes.
 function buildCountryClub() {
@@ -260,13 +262,16 @@ function buildCountryClub() {
   add('chair', -36, 41, 2, 0.6, 0.5); add('trash', -44, 40, 0.75, 0.75, 1.1, { color: '#1f4d3a' });
 
   // clubhouse, patio, cart barn, the round lodge
-  add('house', 34, 16, 20, 10, 4.2, { facing: 'w', wall: '#e8e2d2', roof: '#3a4048', trim: '#ffffff', label: 'BUCK CREEK COUNTRY CLUB' });
+  add('house', 34, 16, 20, 10, 4.2, { facing: 'w', wall: '#e8e2d2', roof: '#3a4048', trim: '#ffffff', label: 'SULLIVAN ELKS COUNTRY CLUB' });
   add('slab', 21.5, 16, 5, 10, 0.3);
   for (const z of [12.5, 19.5]) { add('table', 21.5, z, 1.2, 1.2, 1.0, {}, 0.3); dec('umbrella', 21.5, z, { y: 0.3, color: '#1f4d3a' }); }
   add('garage', 28, 2, 12, 6, 3.6, { facing: 's', wall: '#d9d2c0', roof: '#3a4048' });
   for (const x of [23, 26, 29]) add('golfcart', x, 7.5, 1.4, 2.4, 1.6, { color: '#f8fafc', facing: 'z' });
-  add('lodge', 46, 0, 12, 12, 5);
+  add('lodge', 46, 0, 12, 12, 5, { label: 'ELKS LODGE' });
   dec('lawnSign', 40, 9, { text: 'MEMBERS & GUESTS' });
+  add('streetsign', 18, 53, 0.2, 0.2, 3, { text: 'W WOLFE ST' });
+  dec('lawnSign', 10, 50, { text: 'BUCK CREEK' });
+  add('sign', -8, 52, 0.4, 0.4, 3.2, { text: 'SULLIVAN ELKS COUNTRY CLUB' });
 
   // parking lot by the road
   dec('lot', 36, 40, { w: 36, d: 24 });
@@ -289,8 +294,8 @@ function buildCountryClub() {
     { x: 16, z: -50, yaw: 2.6 },
   ];
   return finalize({
-    id: 'countryclub', name: 'BUCK CREEK COUNTRY CLUB', faction: 'suburban',
-    blurb: 'Tree-lined fairways, Buck Creek, and a very full parking lot off Wolfe St.',
+    id: 'countryclub', name: 'SULLIVAN ELKS COUNTRY CLUB', faction: 'suburban',
+    blurb: 'The Elks course off W Wolfe St: tree-lined fairways, Buck Creek and the Lodge.',
     bounds: BOUNDS,
     theme: {
       mood: 'Golden-hour sunset', sky: '#3f5f9a', horizon: '#ffb36b', fog: '#e8b88a', fogNear: 40, fogFar: 160,
@@ -313,6 +318,7 @@ function buildFarmstead() {
   dec('path', 6, -8, { w: 34, d: 24 });                 // gravel barnyard
   add('mailbox', 6, 53, 0.35, 0.5, 1.25, { color: '#6b7280' });
   add('sign', 18, 52, 0.4, 0.4, 3, { text: 'SWEET CORN · FRESH EGGS' });
+  add('streetsign', -6, 53, 0.2, 0.2, 3, { text: 'N COUNTY RD 150 E' });
 
   // farmhouse with wraparound porch, yard trees, swing
   add('house', -24, 32, 12, 10, 6, { facing: 'e', wall: '#f1ede2', roof: '#3f3f46', trim: '#ffffff', label: 'THE HOLLISTERS' });
@@ -409,7 +415,7 @@ function buildCountyFair() {
   add('tank', 26, 12, 2, 2, 2.4, { color: '#facc15' });
 
   // historic county home (north-east)
-  add('house', 36, -40, 12, 8, 6, { facing: 's', wall: '#a8553f', roof: '#3f3f46', trim: '#f5f0e6', label: 'COUNTY HOME 1880' });
+  add('house', 36, -40, 12, 8, 6, { facing: 's', wall: '#a8553f', roof: '#3f3f46', trim: '#f5f0e6', label: 'SULLIVAN COUNTY POOR HOUSE' });
 
   // fair week: midway by the road
   const stands = [['CORN DOGS', '#dc2626'], ['LEMON SHAKE-UPS', '#eab308'], ['ELEPHANT EARS', '#2563eb'], ['PORK BURGERS', '#9333ea']];
@@ -417,14 +423,16 @@ function buildCountyFair() {
   add('ferrisbase', 30, 30, 6, 3, 2.0);
   dec('ferris', 30, 30, { r: 8 });
   for (let i = 0; i < 3; i++) dec('lights', 0, 0, { x1: 6, z1: 20 + i * 8, x2: 24, z2: 22 + i * 8, h: 4.5 });
-  dec('lights', 0, 0, { x1: -3, z1: -44, x2: -3, z2: 40, h: 4.8 });
+  for (let z = -40; z <= 10; z += 10) dec('lights', 0, 0, { x1: -3.6, z1: z, x2: 3.6, z2: z + 1, h: 5 });
 
   // parking / trailers (south-west), extension office
-  add('house', -32, 24, 14, 9, 3.8, { facing: 's', wall: '#d6d3cb', roof: '#4b5563', trim: '#ffffff', label: 'EXTENSION OFFICE' });
+  add('house', -32, 24, 14, 9, 3.8, { facing: 's', wall: '#d6d3cb', roof: '#4b5563', trim: '#ffffff', label: 'PURDUE EXTENSION' });
   add('trailer', -40, 40, 2.4, 7, 2.6, { color: '#e5e7eb' });
   add('trailer', -34, 40, 2.4, 7, 2.6, { color: '#9ca3af' });
   add('pickup', -26, 40, 2.3, 5.4, 1.9, { color: '#1f2937', facing: 'z' });
   add('potty', -18, 34, 1.3, 1.3, 2.4); add('potty', -16.5, 34, 1.3, 1.3, 2.4);
+  add('sign', 0, 52, 0.4, 0.4, 3.4, { text: 'SULLIVAN COUNTY 4-H FAIRGROUNDS' });
+  add('streetsign', 14, 53, 0.2, 0.2, 3, { text: 'E COUNTY RD 75 N' });
   for (const [x, z] of [[-52, -52], [52, -52], [-52, 52], [52, 30], [-52, 6]]) tree(x, z, 3);
   const spawns = [
     { x: -46, z: -46, yaw: 0.8 }, { x: -46, z: 10, yaw: 1.4 }, { x: -46, z: 46, yaw: 2.4 }, { x: -14, z: 46, yaw: 3 },
@@ -433,8 +441,8 @@ function buildCountyFair() {
     { x: 18, z: -14, yaw: -1.2 }, { x: 0, z: -40, yaw: Math.PI },
   ];
   return finalize({
-    id: 'countyfair', name: 'THE FAIRGROUNDS', faction: 'country',
-    blurb: 'Fair week at the county fairgrounds: barns, the show ring and the tractor pull.',
+    id: 'countyfair', name: 'SULLIVAN COUNTY 4-H FAIRGROUNDS', faction: 'country',
+    blurb: 'Fair week on County Rd 75 N: livestock barns, the show ring and the tractor pull.',
     bounds: BOUNDS,
     theme: {
       mood: 'Dusk, lights on', sky: '#141a3a', horizon: '#b0587a', fog: '#3c2f4f', fogNear: 35, fogFar: 140,
