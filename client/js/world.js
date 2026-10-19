@@ -489,6 +489,11 @@ function buildKind(B, b) {
       return;
     }
     case 'tank': {
+      if (b.lying) {
+        B.cyl(b.w / 2, b.w / 2, b.d, b.x, b.h / 2 + 0.15, b.z, mat(b.color || '#e5e7eb', null, { roughness: 0.35, metalness: 0.4 }), 14, Math.PI / 2, 0);
+        for (const s2 of [-1, 1]) B.box(0.15, 0.4, b.w * 0.8, b.x, 0, b.z + s2 * b.d * 0.3, mat('#9ca3af'));
+        return;
+      }
       B.cyl(b.w / 2, b.w / 2, b.h, b.x, 0, b.z, mat(b.color || '#e5e7eb'), 14);
       return;
     }
@@ -527,11 +532,12 @@ function buildKind(B, b) {
     case 'tee': return sz(mat('#ffffff', TX.fairway([1, 1])), 1);
     case 'lodge': {
       // the round lodge: octagonal walls + low conical roof (collision stays a box)
-      B.cyl(b.w / 2, b.w / 2, b.h, b.x, 0, b.z, mat('#c9b99a', TX.brick()), 8);
-      B.cyl(0.6, b.w / 2 + 1.2, 2.2, b.x, b.h, b.z, mat('#2f3338', TX.shingles()), 8);
-      B.box(1.6, 2.4, 0.2, b.x - b.w / 2 + 0.1, 0, b.z, mat('#7c2d12'), 0, Math.PI / 2);
+      B.cyl(b.w / 2 - 0.5, b.w / 2 - 0.5, b.h, b.x, 0, b.z, mat('#b8a07c', TX.brick()), 16);
+      B.cyl(1.2, b.w / 2 + 1.5, 3.2, b.x, b.h, b.z, mat('#6b3a2c', TX.shingles()), 16);
+      for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; B.box(0.25, 0.2, b.w / 2, b.x + Math.cos(a) * b.w / 4, b.h + 1.7, b.z + Math.sin(a) * b.w / 4, mat('#4a2a20'), 0, -a + Math.PI / 2); }
+      B.box(2.4, 2.6, 0.2, b.x - b.w / 2 + 0.45, 0, b.z, mat('#7c2d12'), 0, Math.PI / 2);
       const sg = signMesh(b.label || 'LODGE', 3.2, 0.5, { bg: '#1f2937', fg: '#facc15', border: null, w: 384, h: 80 });
-      sg.position.set(b.x - b.w / 2 - 0.05, 3.1, b.z); sg.rotation.y = -Math.PI / 2; B.dynamic.add(sg);
+      sg.position.set(b.x - b.w / 2 + 0.4, 3.4, b.z); sg.rotation.y = -Math.PI / 2; B.dynamic.add(sg);
       return;
     }
     case 'grainbin': {
@@ -548,6 +554,13 @@ function buildKind(B, b) {
       return;
     }
     case 'trailer': {
+      if (b.boat) {
+        B.box(b.w * 0.9, 0.3, b.d, b.x, 0.45, b.z, dark());
+        B.box(b.w, 0.9, b.d * 0.85, b.x, 0.75, b.z, mat('#f8fafc', null, { roughness: 0.3 }));
+        B.box(b.w * 0.9, 0.2, b.d * 0.2, b.x, 1.65, b.z - b.d * 0.15, mat('#1e40af'));
+        for (const sx of [-1, 1]) B.cyl(0.33, 0.33, 0.22, b.x + sx * (b.w / 2), 0.33, b.z, tire(), 10, 0, Math.PI / 2);
+        return;
+      }
       B.box(b.w, b.h - 0.5, b.d, b.x, 0.5, b.z, mat(b.color || '#e5e7eb', null, { roughness: 0.4, metalness: 0.5 }));
       for (let i = 0; i < 4; i++) B.box(b.w + 0.02, 0.15, 0.6, b.x, b.h - 0.6, b.z - b.d * 0.3 + i * 0.8, dark());
       for (const sx of [-1, 1]) B.cyl(0.38, 0.38, 0.25, b.x + sx * (b.w / 2), 0.38, b.z + 0.8, tire(), 10, 0, Math.PI / 2);
@@ -594,11 +607,163 @@ function buildKind(B, b) {
     }
     case 'streetsign': {
       B.box(0.1, b.h, 0.1, b.x, 0, b.z, mat('#9ca3af', null, { roughness: 0.4, metalness: 0.6 }));
-      const sg = signMesh(b.text || '', 1.9, 0.32, { bg: '#1f6b3a', fg: '#ffffff', border: '#ffffff', w: 512, h: 86, font: 'Rubik, Arial, sans-serif' });
+      const sg = b.shield
+        ? signMesh(b.text || '', 0.8, 0.8, { bg: '#ffffff', fg: '#111111', border: '#111111', w: 256, h: 256, font: 'Rubik, Arial, sans-serif' })
+        : signMesh(b.text || '', 1.9, 0.32, { bg: '#1f6b3a', fg: '#ffffff', border: '#ffffff', w: 512, h: 86, font: 'Rubik, Arial, sans-serif' });
       sg.position.set(b.x, b.h - 0.15, b.z); B.dynamic.add(sg);
       return;
     }
     case 'jersey': return sz(mat('#c8c4bb', TX.concrete()), 1.5);
+    case 'pavilion': {
+      for (const [sx, sz2] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B.box(0.3, b.h, 0.3, b.x + sx * (b.w / 2 - 0.3), 0, b.z + sz2 * (b.d / 2 - 0.3), mat('#5b4a3a', TX.wood()));
+      B.roof(b.w, b.d, b.h, b.x, b.z, 1.6, mat('#2f5d3a', null, { roughness: 0.5, metalness: 0.4 }), 0.5);
+      B.box(b.w * 0.9, 0.12, b.d * 0.9, b.x, 0, b.z, mat('#c4bfb3', TX.concrete()), 1);
+      return;
+    }
+    case 'picnic': {
+      const w = mat('#8a6a48', TX.planks());
+      B.box(b.w, 0.08, b.d * 0.5, b.x, b.h - 0.08, b.z, w);
+      for (const sz2 of [-1, 1]) B.box(b.w, 0.06, 0.3, b.x, 0.42, b.z + sz2 * b.d * 0.45, w);
+      for (const sx of [-1, 1]) B.box(0.08, b.h, b.d * 0.8, b.x + sx * b.w * 0.4, 0, b.z, w);
+      return;
+    }
+    case 'playset': {
+      const red = mat('#b91c1c'), post = mat('#e5e7eb', null, { roughness: 0.4, metalness: 0.5 });
+      for (const [sx, sz2] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B.box(0.15, b.h, 0.15, b.x + sx * b.w * 0.25, 0, b.z + sz2 * b.d * 0.4, post);
+      B.box(b.w * 0.55, 0.15, b.d * 0.85, b.x, 1.5, b.z, mat('#a16207', TX.planks()));
+      B.roof(b.w * 0.55, b.d * 0.85, b.h - 0.6, b.x, b.z, 0.8, red, 0.1);
+      B.push(new THREE.BoxGeometry(0.8, 0.08, 3), mat('#facc15'), b.x + b.w * 0.42, 0.8, b.z, 0, 0.55, 0); // slide
+      return;
+    }
+    case 'lifeguard': {
+      const w = mat('#f5f5f0');
+      for (const [sx, sz2] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B.box(0.12, b.h - 0.6, 0.12, b.x + sx * b.w * 0.35, 0, b.z + sz2 * b.d * 0.35, w);
+      B.box(b.w * 0.8, 0.1, b.d * 0.8, b.x, b.h - 1.6, b.z, w);
+      B.box(b.w * 0.5, 0.6, 0.1, b.x, b.h - 1.5, b.z + b.d * 0.3, mat('#dc2626'));
+      dec_umb(B, b.x, b.z, b.h - 1.5);
+      return;
+    }
+    case 'wallseg': {
+      const texMap = { siding: TX.siding(), metal: TX.metal(), planks: TX.planks(), brick: TX.brick(), plain: null };
+      const t = texMap[b.tex] ?? TX.siding();
+      sz(mat(b.tex === 'brick' ? '#ffffff' : b.wall, t, b.tex === 'metal' ? { roughness: 0.45, metalness: 0.45 } : {}), b.tex === 'metal' ? 1.4 : 1.2);
+      if (b.sill || b.header === 'door') {
+        // trim around openings
+        const alongX = b.w > b.d;
+        B.box(alongX ? b.w + 0.1 : b.d + 0.04, 0.08, alongX ? b.d + 0.04 : b.w + 0.1, b.x, b.sill ? b.y + b.h : b.y - 0.04, b.z, white());
+      }
+      return;
+    }
+    case 'shellroof': {
+      // ceiling slab (collision) + pitched roof on top
+      B.box(b.w, b.h, b.d, b.x, b.y, b.z, mat('#d8d4cb'));
+      const rm = b.metalRoof ? mat(b.roof, TX.metal(), { roughness: 0.35, metalness: 0.55 }) : mat(b.roof, TX.shingles());
+      B.roof(b.w, b.d, b.y + b.h, b.x, b.z, b.roofH, rm, 0.45);
+      return;
+    }
+    case 'utilpole': {
+      B.cyl(0.14, 0.18, b.h, b.x, 0, b.z, mat('#5a4632', TX.wood()), 7);
+      B.box(2.4, 0.14, 0.14, b.x, b.h - 0.6, b.z, mat('#5a4632'));
+      for (const sx of [-1, 0, 1]) B.cyl(0.05, 0.05, 0.18, b.x + sx * 1.0, b.h - 0.42, b.z, mat('#3f6e8f'), 5);
+      B.cyl(0.25, 0.25, 0.8, b.x + 0.35, b.h - 2.2, b.z, mat('#9ca3af', null, { metalness: 0.5, roughness: 0.4 }), 8); // transformer
+      return;
+    }
+    case 'counter': {
+      sz(mat('#a3886a', TX.planks()), 1);
+      B.box(b.w + 0.05, 0.05, b.d + 0.05, b.x, b.h, b.z, mat('#e7e2d8'));
+      return;
+    }
+    case 'couch': {
+      B.box(b.w, 0.45, b.d, b.x, 0, b.z, mat(b.color || '#5b4636'));
+      B.box(b.w, 0.5, 0.25, b.x, 0.45, b.z + b.d / 2 - 0.12, mat(b.color || '#5b4636'));
+      return;
+    }
+    case 'bed': {
+      B.box(b.w, b.h, b.d, b.x, 0, b.z, mat(b.color || '#7c8a9e'));
+      B.box(b.w, 0.9, 0.12, b.x, 0, b.z - b.d / 2, mat('#6b4a2a', TX.wood()));
+      return;
+    }
+    case 'workbench': {
+      B.box(b.w, 0.1, b.d, b.x, b.h - 0.1, b.z, mat('#8a6a48', TX.planks()));
+      B.box(b.w * 0.95, 0.6, b.d * 0.9, b.x, 0.1, b.z, mat('#6b7280'));
+      B.box(0.4, 0.3, 0.3, b.x - b.w * 0.2, b.h, b.z, mat('#dc2626')); // toolbox
+      return;
+    }
+    case 'shelf': {
+      const m = mat('#6b7280', null, { metalness: 0.4, roughness: 0.5 });
+      for (let i = 0; i < 4; i++) B.box(b.w, 0.05, b.d, b.x, i * 0.7, b.z, m);
+      for (const sx of [-1, 1]) B.box(0.06, b.h, b.d, b.x + sx * b.w / 2, 0, b.z, m);
+      for (let i = 0; i < 6; i++) B.box(0.5, 0.4, b.d * 0.8, b.x - b.w / 2 + 0.4 + (i % 3) * 1.2, 0.05 + Math.floor(i / 3) * 0.7, b.z, mat(['#b45309', '#1d4ed8', '#9ca3af'][i % 3]));
+      return;
+    }
+    case 'fueltank': {
+      for (const sx of [-1, 1]) B.box(0.15, 1.2, 0.15, b.x + sx * b.w * 0.35, 0, b.z, dark());
+      B.cyl(b.d / 2, b.d / 2, b.w, b.x, 1.2 + b.d / 2, b.z, mat('#dc2626', null, { roughness: 0.4, metalness: 0.4 }), 12, 0, Math.PI / 2);
+      return;
+    }
+    case 'tires': {
+      const n = Math.round(b.h / 0.3);
+      for (let i = 0; i < n; i++) B.cyl(b.w / 2, b.w / 2, 0.28, b.x, i * 0.3, b.z, tire(), 12);
+      return;
+    }
+    case 'pallets': {
+      const n = Math.round(b.h / 0.15);
+      for (let i = 0; i < n; i++) B.box(b.w, 0.13, b.d, b.x + (i % 2) * 0.04, i * 0.15, b.z, mat('#b9a27f', TX.planks()));
+      return;
+    }
+    case 'scrap': {
+      B.box(b.w, b.h * 0.6, b.d, b.x, 0, b.z, mat('#7c5a3a', null, { roughness: 0.9, metalness: 0.3 }));
+      B.push(new THREE.BoxGeometry(b.w * 0.8, 0.1, b.d * 0.6), mat('#9a6b3f', null, { metalness: 0.4 }), b.x, b.h * 0.7, b.z, 0.4, 0.2, 0.1);
+      B.cyl(0.4, 0.4, 0.3, b.x + b.w * 0.3, b.h * 0.6 + 0.2, b.z, tire(), 10, 0.8, 0);
+      return;
+    }
+    case 'barrel': {
+      B.cyl(b.w / 2, b.w / 2, b.h, b.x, 0, b.z, mat(b.color || '#7c2d12', null, { roughness: 0.8, metalness: 0.3 }), 10);
+      return;
+    }
+    case 'bush': {
+      const m = mat(['#3b5f2a', '#4a6b2f', '#36552a'][Math.floor((b.x * 7 + b.z * 3) % 3 + 3) % 3], null, { roughness: 1 });
+      B.sphere(Math.max(b.w, b.d) / 2, b.x, b.h * 0.45, b.z, m, 1, [1, b.h / Math.max(b.w, b.d) * 1.1, b.d / b.w]);
+      return;
+    }
+    case 'dumpster': {
+      B.box(b.w, b.h * 0.85, b.d, b.x, 0.15, b.z, mat(b.color || '#1f4d3a', null, { roughness: 0.6, metalness: 0.4 }));
+      B.push(new THREE.BoxGeometry(b.w * 1.02, 0.08, b.d * 1.05), mat('#111827'), b.x, b.h, b.z, 0, 0.12, 0);
+      for (const sx of [-1, 1]) B.cyl(0.12, 0.12, 0.15, b.x + sx * b.w * 0.4, 0, b.z, dark(), 6);
+      return;
+    }
+    case 'ac': {
+      sz(mat('#cbd5e1', null, { roughness: 0.4, metalness: 0.5 }));
+      B.cyl(b.w * 0.4, b.w * 0.4, 0.03, b.x, b.h, b.z, dark(), 12);
+      return;
+    }
+    case 'generator': {
+      sz(mat('#facc15', null, { roughness: 0.5, metalness: 0.3 }));
+      B.box(b.w * 0.9, 0.15, b.d * 0.9, b.x, b.h, b.z, dark());
+      return;
+    }
+    case 'kayaks': {
+      const cols = ['#dc2626', '#facc15', '#2563eb'];
+      for (let i = 0; i < 3; i++) B.sphere(0.3, b.x + (i - 1) * 0.42, 0.25 + i * 0.05, b.z, mat(cols[i]), 1, [1, 0.6, b.d / 0.6]);
+      return;
+    }
+    case 'kiddiepool': {
+      B.cyl(b.w / 2, b.w / 2, b.h, b.x, 0, b.z, mat('#38bdf8'), 16);
+      B.cyl(b.w / 2 - 0.15, b.w / 2 - 0.15, 0.03, b.x, b.h, b.z, mat('#7dd3fc', null, { roughness: 0.1 }), 16);
+      return;
+    }
+    case 'plate': return B.box(b.w, b.h, b.d, b.x, b.y, b.z, mat(b.color || '#9ca3af', TX.metal(), { roughness: 0.4, metalness: 0.5 }), 1);
+    case 'carport': {
+      // posts + metal roof; the posts are thin so the space underneath stays open
+      for (const [sx, sz2] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B.box(0.12, b.h, 0.12, b.x + sx * (b.w / 2 - 0.1), 0, b.z + sz2 * (b.d / 2 - 0.1), mat(b.color || '#9ca3af'));
+      B.box(b.w + 0.3, 0.08, b.d + 0.3, b.x, b.h, b.z, mat(b.color || '#9ca3af', TX.metal(), { roughness: 0.4, metalness: 0.5 }));
+      return;
+    }
+    case 'ballwasher': {
+      B.box(0.08, b.h, 0.08, b.x, 0, b.z, dark());
+      B.box(0.3, 0.3, 0.2, b.x, b.h - 0.3, b.z, mat('#1d4ed8'));
+      return;
+    }
     case 'table': {
       B.cyl(b.w / 2, b.w / 2, 0.08, b.x, b.y + b.h - 0.08, b.z, white(), 14);
       B.cyl(0.06, 0.06, b.h, b.x, b.y, b.z, dark(), 6);
@@ -661,6 +826,11 @@ function buildKind(B, b) {
     }
     default: return sz(mat(b.color || '#9ca3af'));
   }
+}
+
+function dec_umb(B, x, z, y) {
+  B.cyl(0.04, 0.04, 1.8, x, y, z, mat('#e5e7eb'), 6);
+  B.cyl(0.05, 1.2, 0.4, x, y + 1.6, z, mat('#dc2626'), 8);
 }
 
 function buildDecor(B, d) {
@@ -767,6 +937,38 @@ function buildDecor(B, d) {
       }
       return;
     }
+    case 'net': {
+      B.box(0.03, 0.9, d.len, d.x, 1.5, d.z, mat('#f8fafc', null, { transparent: true, opacity: 0.7 }));
+      return;
+    }
+    case 'buoy': {
+      B.sphere(0.25, d.x, 0.15, d.z, mat(d.x % 2 ? '#f97316' : '#f8fafc'), 0);
+      return;
+    }
+    case 'wires': {
+      const wm = mat('#1b1b1b');
+      for (let i = 0; i < d.n; i++) {
+        const ax = d.x1 + ((d.x2 - d.x1) * i) / d.n, az = d.z1 + ((d.z2 - d.z1) * i) / d.n;
+        const bx = d.x1 + ((d.x2 - d.x1) * (i + 1)) / d.n, bz = d.z1 + ((d.z2 - d.z1) * (i + 1)) / d.n;
+        for (const off of [-1, 0, 1]) {
+          const segs = 6;
+          for (let k = 0; k < segs; k++) {
+            const t0 = k / segs, t1 = (k + 1) / segs;
+            const sag = (t) => Math.sin(t * Math.PI) * 0.7;
+            const p0 = new THREE.Vector3(ax + (bx - ax) * t0 + (d.z1 === d.z2 ? 0 : off), d.h - 0.4 - sag(t0), az + (bz - az) * t0 + (d.z1 === d.z2 ? 0 : 0));
+            const p1 = new THREE.Vector3(ax + (bx - ax) * t1, d.h - 0.4 - sag(t1), az + (bz - az) * t1);
+            if (d.z1 === d.z2) { p0.z += 0; p1.z += 0; p0.x = ax + (bx - ax) * t0; p1.x = ax + (bx - ax) * t1; }
+            const len = p0.distanceTo(p1);
+            const g = new THREE.CylinderGeometry(0.02, 0.02, len, 3);
+            g.rotateZ(Math.PI / 2);
+            const ang = Math.atan2(p1.y - p0.y, Math.hypot(p1.x - p0.x, p1.z - p0.z));
+            const yaw = Math.atan2(-(p1.z - p0.z), p1.x - p0.x);
+            B.push(g, wm, (p0.x + p1.x) / 2 + (d.z1 === d.z2 ? 0 : off), (p0.y + p1.y) / 2, (p0.z + p1.z) / 2 + (d.z1 === d.z2 ? off : 0), yaw, 0, ang);
+          }
+        }
+      }
+      return;
+    }
     case 'cornrow': {
       // a row of corn stalks (visual only — you can push through the corn, but it hides you)
       const m = mat('#7ca83a'), tassel = mat('#e8c547');
@@ -798,7 +1000,7 @@ function buildGround(B, map, decor) {
     pasture: () => TX.pasture([36, 36]),
     fairground: () => TX.fairground([34, 34]),
   }[map.theme.ground]?.() || TX.lawn([48, 48]);
-  const size = map.bounds * 2 + 60;
+  const size = map.bounds * 2 + 500; // extends to the fog so there is never a visible edge
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat(map.theme.groundTint || '#ffffff', g));
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
@@ -826,19 +1028,44 @@ function buildGround(B, map, decor) {
       m.rotation.x = -Math.PI / 2; m.position.set(d.x, d.kind === 'pond' ? 0.04 : 0.03, d.z); m.receiveShadow = true;
       if (d.kind !== 'green') m.scale.set(1, 1.25, 1);
       B.dynamic.add(m);
+    } else if (d.kind === 'floor' || d.kind === 'ditch') {
+      const tex = d.kind === 'ditch' ? TX.lawn([d.w / 4, d.d / 4]) : TX.planks([d.w / 2, d.d / 2]);
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(d.w, d.d), mat(d.kind === 'ditch' ? '#8aa06a' : '#c79a6a', tex));
+      m.rotation.x = -Math.PI / 2; m.position.set(d.x, d.kind === 'ditch' ? 0.012 : 0.03, d.z); m.receiveShadow = true;
+      B.dynamic.add(m);
     } else if (d.kind === 'mown' || d.kind === 'lot' || d.kind === 'arena') {
       const tex = d.kind === 'mown' ? TX.fairway([d.w / 3, d.d / 3]) : d.kind === 'lot' ? TX.asphalt([d.w / 6, d.d / 6]) : TX.dirt([d.w / 5, d.d / 5]);
       const m = new THREE.Mesh(new THREE.PlaneGeometry(d.w, d.d), mat('#ffffff', tex));
       m.rotation.x = -Math.PI / 2; m.position.set(d.x, d.kind === 'mown' ? 0.015 : 0.025, d.z); m.receiveShadow = true;
       B.dynamic.add(m);
       if (d.kind === 'lot') for (let i = -3; i <= 3; i++) for (const zz of [-6, 6]) B.box(0.12, 0.01, 4.5, d.x + i * 6 + 3, 0.03, d.z + zz, white());
-    } else if (d.kind === 'creek') {
-      const water = mat('#3a6d7f', null, { roughness: 0.1, metalness: 0.3 });
-      const mud = mat('#6b5a3e', TX.dirt([1, 1]));
+    } else if (d.kind === 'waterpoly' || d.kind === 'sandpoly') {
+      const shape = new THREE.Shape(d.pts.map(([x, z]) => new THREE.Vector2(x, -z)));
+      const geo = new THREE.ShapeGeometry(shape);
+      const isWater = d.kind === 'waterpoly';
+      const m = new THREE.Mesh(geo, isWater
+        ? mat('#2f6077', null, { roughness: 0.05, metalness: 0.35 })
+        : mat('#ffffff', TX.sand([2, 2])));
+      m.rotation.x = -Math.PI / 2; m.position.y = isWater ? 0.06 : 0.04; m.receiveShadow = true;
+      if (!isWater) { const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 8, uv.getY(i) / 8); }
+      B.dynamic.add(m);
+    } else if (d.kind === 'loop') {
+      const outer = new THREE.Shape(); outer.absellipse(0, 0, d.rx, d.rz, 0, Math.PI * 2);
+      const hole = new THREE.Path(); hole.absellipse(0, 0, d.rx - d.w, d.rz - d.w, 0, Math.PI * 2, true);
+      outer.holes.push(hole);
+      const geo = new THREE.ShapeGeometry(outer, 48);
+      const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 6, uv.getY(i) / 6);
+      const m = new THREE.Mesh(geo, mat('#ffffff', TX.asphalt([1, 1])));
+      m.rotation.x = -Math.PI / 2; m.position.set(d.x, 0.03, d.z); m.receiveShadow = true;
+      B.dynamic.add(m);
+    } else if (d.kind === 'creek' || d.kind === 'cartpath') {
+      const isPath = d.kind === 'cartpath';
+      const water = isPath ? mat('#ffffff', d.road ? TX.asphalt([1, 4]) : TX.concrete([1, 4])) : mat('#3a6d7f', null, { roughness: 0.1, metalness: 0.3 });
+      const mud = isPath ? null : mat('#6b5a3e', TX.dirt([1, 1]));
       for (let i = 0; i < d.pts.length - 1; i++) {
         const [x1, z1] = d.pts[i], [x2, z2] = d.pts[i + 1];
         const len = Math.hypot(x2 - x1, z2 - z1) + 1.5, ang = Math.atan2(x2 - x1, z2 - z1);
-        for (const [w, y, m] of [[d.w + 2.4, 0.02, mud], [d.w, 0.035, water]]) {
+        for (const [w, y, m] of (isPath ? [[d.w, 0.03, water]] : [[d.w + 2.4, 0.02, mud], [d.w, 0.035, water]])) {
           const seg = new THREE.Mesh(new THREE.PlaneGeometry(w, len), m);
           seg.rotation.set(-Math.PI / 2, 0, ang); seg.position.set((x1 + x2) / 2, y, (z1 + z2) / 2); seg.receiveShadow = true;
           B.dynamic.add(seg);
@@ -859,11 +1086,13 @@ function buildGround(B, map, decor) {
       mesh.receiveShadow = true;
       B.dynamic.add(mesh);
       if (d.kind === 'road') {
-        // dashed centre line
-        const dashes = Math.floor(d.d / 4);
+        // dashed centre line along the road's long axis
+        const alongX = d.w > d.d, len = alongX ? d.w : d.d;
+        const dashes = Math.floor(len / 4);
         for (let i = 0; i < dashes; i++) {
-          const z = d.z - d.d / 2 + 2 + i * 4;
-          B.box(0.18, 0.01, 1.8, d.x, 0.025, z, mat('#facc15'));
+          const t = -len / 2 + 2 + i * 4;
+          if (alongX) B.box(1.8, 0.01, 0.18, d.x + t, 0.025, d.z, mat('#facc15'));
+          else B.box(0.18, 0.01, 1.8, d.x, 0.025, d.z + t, mat('#facc15'));
         }
       }
     }
@@ -871,6 +1100,14 @@ function buildGround(B, map, decor) {
 }
 
 function buildBackdrop(B, map) {
+  if (map.id === 'lake') { // far shore of the lake: a low wooded ridge
+    for (let i = 0; i < 40; i++) {
+      const a = -Math.PI * 0.6 + (i / 40) * Math.PI * 1.2;
+      const x = Math.sin(a) * 230, z = -Math.cos(a) * 230;
+      B.sphere(14 + (i % 3) * 3, x, 2, z, mat('#2f5a24', null, { roughness: 1 }), 1, [1.6, 0.6, 1]);
+    }
+    return;
+  }
   // Cheap distant scenery beyond the boundary hedge for depth.
   const R = map.bounds + 12;
   const treeM = mat('#2f6b2a'), trunkM = mat('#5b3a1e');

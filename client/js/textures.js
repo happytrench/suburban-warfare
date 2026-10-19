@@ -104,6 +104,22 @@ export const furrows = (rep = [1, 1]) => make('furrows', 256, (g, s) => {
   noise(g, s, ['rgba(0,0,0,.15)', 'rgba(255,255,255,.06)'], 2000, 2, 47);
 }, rep);
 
+export const sand = (rep = [1, 1]) => make('sand', 256, (g, s) => {
+  g.fillStyle = '#d9c38f'; g.fillRect(0, 0, s, s);
+  noise(g, s, ['#cdb47c', '#e6d3a3', '#c4a96e', '#efe0b8'], 9000, 1.6, 51);
+}, rep);
+
+// Corrugated metal siding (pole barns, sheds).
+export const metal = (rep = [1, 1]) => make('metal', 128, (g, s) => {
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, s, s);
+  for (let x = 0; x < s; x += 8) {
+    const grd = g.createLinearGradient(x, 0, x + 8, 0);
+    grd.addColorStop(0, 'rgba(0,0,0,.14)'); grd.addColorStop(0.5, 'rgba(255,255,255,.12)'); grd.addColorStop(1, 'rgba(0,0,0,.14)');
+    g.fillStyle = grd; g.fillRect(x, 0, 8, s);
+  }
+  noise(g, s, ['rgba(120,80,40,.06)', 'rgba(0,0,0,.05)'], 300, 3, 61);
+}, rep);
+
 export const bark = (rep = [1, 1]) => make('bark', 128, (g, s) => {
   g.fillStyle = '#4a3a2a'; g.fillRect(0, 0, s, s);
   const rand = rng(5);

@@ -55,8 +55,11 @@
     { p: [0, 60, 40], t: [0, 0, -4] },
     { p: [6, 5, 40], t: [38, 3, 8] },
     { p: [-2, 3, 36], t: [-2, 2, 0] },
+    { p: [-30, 70, 95], t: [5, 0, -5] },
+    { p: [-30, 4, 30], t: [40, 3, 0] },
   ];
-  const s = shots[Number(q.get('shot') || 0)] || shots[0];
+  let s = shots[Number(q.get('shot') || 0)] || shots[0];
+  if (q.get('cam')) s = { p: q.get('cam').split(',').map(Number), t: q.get('look').split(',').map(Number) };
   const cam = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 900);
   cam.position.set(...s.p); cam.lookAt(...s.t);
   renderer.render(scene, cam);
