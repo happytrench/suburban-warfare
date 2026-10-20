@@ -1151,7 +1151,11 @@ export function buildWorld(map) {
   };
   if (real) map.decor.forEach((d, i) => { if (d.kind === 'canopy') forest.push({ x: d.x, z: d.z, r: d.r || 3, species: species(d.x, d.z, i) }); });
   const treeAt = new Set(forest.map((f) => `${f.x}|${f.z}`));
-  for (const b of map.boxes) { if (real && b.kind === 'trunk' && !b.kind2 && treeAt.has(`${b.x}|${b.z}`)) continue; buildKind(B, b); }
+  for (const b of map.boxes) {
+    if (real && b.kind === 'trunk' && !b.kind2 && treeAt.has(`${b.x}|${b.z}`)) continue;
+    if (real && b.kind === 'bush') { forest.push({ x: b.x, z: b.z, h: b.h * 1.15, species: ['bush1', 'bush2', 'bush3'][Math.abs(Math.round(b.x * 3 + b.z * 5)) % 3] }); continue; }
+    buildKind(B, b);
+  }
   for (const d of map.decor) { if (real && d.kind === 'canopy') continue; buildDecor(B, d); }
   buildBackdrop(B, map, real ? forest : null);
   const g = B.build();

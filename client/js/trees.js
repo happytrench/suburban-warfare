@@ -30,6 +30,9 @@ const SPECIES = {
   ash: ['Ash Medium', 'Bark007'],
   aspen: ['Aspen Medium', 'Bark013'],
   pine: ['Pine Medium', 'Bark013'],
+  bush1: ['Bush 1', 'Bark001'],
+  bush2: ['Bush 2', 'Bark001'],
+  bush3: ['Bush 3', 'Bark001'],
 };
 
 const variants = new Map(); // species -> [{ branches, leaves, height, radius }]
@@ -79,7 +82,7 @@ export function buildForest(items) {
       const im = new THREE.InstancedMesh(src.geometry, src.material, list.length);
       im.castShadow = true; im.receiveShadow = true;
       list.forEach((it, j) => {
-        const want = it.species === 'pine' ? it.r * 4.2 : it.r * 3.1 + 2.5;   // overall height in metres
+        const want = it.h || (it.species === 'pine' ? it.r * 4.2 : it.r * 3.1 + 2.5);   // overall height in metres
         const sc = want / v.height;
         q.setFromAxisAngle(Y, (it.x * 12.9898 + it.z * 78.233) % (Math.PI * 2));
         m4.compose(p.set(it.x, 0, it.z), q, s.setScalar(sc * (0.9 + ((j * 37) % 20) / 100)));
