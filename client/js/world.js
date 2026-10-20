@@ -20,6 +20,7 @@ function mat(color, map = null, extra = {}) {
       m = new THREE.MeshStandardMaterial({ color, map, roughness, metalness, ...rest });
       if (map && map.userData.normal) { m.normalMap = map.userData.normal; m.normalScale.set(1, 1); }
       else if (map && !map.userData.photo) { m.bumpMap = map; m.bumpScale = 2.2; }
+      if (!rest.emissive && !rest.transparent && !rest.opacity) grime(m);
     } else {
       const { roughness, metalness, ...rest } = extra; void roughness; void metalness;
       m = new THREE.MeshLambertMaterial({ color, map, ...rest });
@@ -27,6 +28,45 @@ function mat(color, map = null, extra = {}) {
     matCache.set(key, m);
   }
   return matCache.get(key);
+}
+
+// World-space grime on every static surface (High quality): large-scale colour variation so tiling
+// never reads, dirt and splash-back along the bottom of walls, rain streaks running down vertical
+// faces, and dark stains / oil spots on the ground. Pure shader math, no extra textures.
+const GRIME_GLSL = `
+  float gHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+  float gNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(gHash(i), gHash(i + vec2(1, 0)), f.x), mix(gHash(i + vec2(0, 1)), gHash(i + vec2(1, 1)), f.x), f.y); }
+  float gFbm(vec2 p) { float a = 0.5, s = 0.0; for (int k = 0; k < 4; k++) { s += a * gNoise(p); p *= 2.03; a *= 0.5; } return s; }
+`;
+function grime(m) {
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGW; varying vec3 vGN;')
+      .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
+        vec4 gw = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          gw = instanceMatrix * gw;
+        #endif
+        vGW = (modelMatrix * gw).xyz; vGN = normalize(mat3(modelMatrix) * objectNormal);`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGW; varying vec3 vGN;\n' + GRIME_GLSL)
+      .replace('#include <map_fragment>', `#include <map_fragment>
+        {
+          vec3 wp = vGW; float up = clamp(vGN.y, 0.0, 1.0); float wall = 1.0 - abs(vGN.y);
+          float big = gFbm(wp.xz * 0.06 + wp.y * 0.03);
+          diffuseColor.rgb *= mix(0.8, 1.08, big);                                   // break up tiling
+          float base = (1.0 - smoothstep(0.0, 1.1, wp.y)) * wall;                    // splash-back dirt
+          float bn = gFbm(vec2(wp.x + wp.z, wp.y) * 1.7);
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.52, 0.46, 0.38), base * (0.35 + 0.5 * bn));
+          float sc = (wp.x + wp.z) * 2.6;                                             // rain streaks down walls
+          float streak = gNoise(vec2(sc, wp.y * 0.18)) * gNoise(vec2(sc * 3.1, wp.y * 0.6 + 7.0));
+          diffuseColor.rgb *= 1.0 - wall * smoothstep(0.35, 0.8, streak) * 0.22;
+          float stain = smoothstep(0.62, 0.8, gFbm(wp.xz * 0.35 + 3.7));             // stains / oil spots on the ground
+          diffuseColor.rgb *= 1.0 - up * stain * 0.28;
+        }`);
+  };
+  m.customProgramCacheKey = () => 'grime1';
 }
 
 // Box geometry whose UVs are scaled to world size, so textures tile consistently.
