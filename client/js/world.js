@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import * as TX from './textures.js';
 import { buildForest } from './trees.js';
 import { propReady, placeProp } from './props.js';
+import { buildCar } from './vehicles.js';
 
 // 'high' = physically based materials with bump detail; 'low' = cheap Lambert shading.
 let QUALITY = 'high';
@@ -1193,10 +1194,11 @@ export function buildWorld(map) {
   };
   if (real) map.decor.forEach((d, i) => { if (d.kind === 'canopy') forest.push({ x: d.x, z: d.z, r: d.r || 3, species: species(d.x, d.z, i) }); });
   const treeAt = new Set(forest.map((f) => `${f.x}|${f.z}`));
-  const props = [];
+  const props = [], cars = [];
   for (const b of map.boxes) {
     if (real && b.kind === 'trunk' && !b.kind2 && treeAt.has(`${b.x}|${b.z}`)) continue;
     if (real && propReady(b.kind)) { props.push(b); continue; }
+    if (real && ['suv', 'pickup', 'golfcart'].includes(b.kind)) { cars.push(b); continue; }
     if (real && b.kind === 'bush') { forest.push({ x: b.x, z: b.z, h: b.h * 1.15, species: ['bush1', 'bush2', 'bush3'][Math.abs(Math.round(b.x * 3 + b.z * 5)) % 3] }); continue; }
     buildKind(B, b);
   }
@@ -1204,6 +1206,7 @@ export function buildWorld(map) {
   buildBackdrop(B, map, real ? forest : null);
   const g = B.build();
   for (const b of props) { try { g.add(placeProp(b)); } catch (e) { console.warn('prop', b.kind, e); } }
+  for (const b of cars) { try { g.add(buildCar(b)); } catch (e) { console.warn('car', b.kind, e); } }
   if (forest.length) {
     try { const f = buildForest(forest); g.add(f); g.userData.update = f.userData.update; } catch (e) { console.warn('trees', e); }
   }
