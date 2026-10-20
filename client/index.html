@@ -8,7 +8,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Barlow+Condensed:wght@500;700;800&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js", "three/addons/": "./vendor/jsm/" } }</script>
 </head>
@@ -64,32 +64,42 @@
       <p id="loading-text">Mowing the lawns…</p>
     </section>
 
-    <section id="menu" class="screen hidden">
-      <div class="menu-wrap">
-        <div class="logo big"><span>SUBURBAN</span><span>WARFARE</span></div>
-        <p class="tagline">Property values are about to drop.</p>
-        <div class="panel notice">
-          <div class="pin"></div>
-          <label class="field">
-            <span>Your name on the mailbox</span>
-            <input id="name-input" maxlength="16" placeholder="e.g. Dave from #12" autocomplete="off" />
-          </label>
-          <button id="btn-play" class="btn primary">Quick Play</button>
-          <div class="row">
-            <button id="btn-create" class="btn">Create Room</button>
-          </div>
-          <div class="row join-row">
-            <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" />
-            <button id="btn-join" class="btn">Join Room</button>
-          </div>
-          <div class="row small">
-            <button id="btn-settings" class="btn ghost">Settings</button>
-            <button id="btn-howto" class="btn ghost">Controls &amp; Rules</button>
-          </div>
-          <div id="menu-error" class="error hidden"></div>
+    <section id="menu" class="screen hidden cod">
+      <header class="cod-top">
+        <div class="cod-logo">SUBURBAN <b>WARFARE</b></div>
+        <label class="callsign">
+          <span class="emblem"></span>
+          <span class="cs-text"><span class="eyebrow">CALLSIGN</span><input id="name-input" maxlength="16" placeholder="Dave from #12" autocomplete="off" spellcheck="false" /></span>
+        </label>
+      </header>
+      <nav class="cod-nav" id="cod-nav">
+        <div class="cod-section">MULTIPLAYER</div>
+        <button id="btn-play" class="cod-item" data-title="QUICK PLAY" data-desc="Drop straight into the first open match in the neighborhood. Free-for-all or Team Deathmatch, whatever's running."><span>QUICK PLAY</span><small>Find a match</small></button>
+        <button id="btn-create" class="cod-item" data-title="PRIVATE MATCH" data-desc="Start your own lobby. Send your friends the invite link, pick the mode, kill limit and time, vote on the map, and start when everybody's in."><span>PRIVATE MATCH</span><small>Play with friends</small></button>
+        <button id="btn-joinmenu" class="cod-item" data-title="JOIN A FRIEND" data-desc="Got an invite link? Just open it. Got a 4-letter code instead? Type it here."><span>JOIN A FRIEND</span><small>Invite code</small></button>
+        <div id="join-panel" class="cod-join hidden">
+          <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off" spellcheck="false" />
+          <button id="btn-join" class="cod-btn">JOIN</button>
         </div>
+        <div class="cod-section">OPTIONS</div>
+        <button id="btn-operators" class="cod-item" data-title="OPERATORS" data-desc="Pristine Pines HOA vs the Backroad Boys. Five neighbors on each side of the property line."><span>OPERATORS</span><small>Meet the cast</small></button>
+        <button id="btn-settings" class="cod-item" data-title="SETTINGS" data-desc="Graphics quality, mouse sensitivity, field of view, volume."><span>SETTINGS</span><small>Graphics, controls, audio</small></button>
+        <button id="btn-howto" class="cod-item" data-title="CONTROLS &amp; RULES" data-desc="How to move, shoot, and stay on the right side of the HOA."><span>CONTROLS &amp; RULES</span><small>How to play</small></button>
+      </nav>
+      <aside class="cod-detail">
+        <div class="cod-detail-bar"></div>
+        <h2 id="detail-title">QUICK PLAY</h2>
+        <p id="detail-text">Drop straight into the first open match in the neighborhood.</p>
+        <div id="operators" class="hidden">
+          <div class="op-team hoa"><h3>PRISTINE PINES HOA</h3><ul><li><b>Chad</b> popped collar, boat shoes, gym membership</li><li><b>Karen</b> wants to speak to your manager</li><li><b>Golf Dad</b> tee time is sacred</li><li><b>Brad</b> fleece vest, crypto, man bun</li><li><b>Todd</b> HOA president, has a clipboard</li></ul></div>
+          <div class="op-team country"><h3>BACKROAD BOYS</h3><ul><li><b>Bubba</b> mullet, camo cap, beer gut</li><li><b>Cletus</b> one overall strap, always</li><li><b>Darlene</b> teased hair, cowboy boots</li><li><b>Hank</b> long-haul trucker, handlebar 'stache</li><li><b>Jimbo</b> bass fisherman, white rubber boots</li></ul></div>
+        </div>
+        <div id="menu-error" class="error hidden"></div>
+      </aside>
+      <footer class="cod-foot">
         <div class="status-line"><span id="server-dot" class="dot"></span><span id="server-status">Connecting to the neighborhood…</span></div>
-      </div>
+        <div class="cod-hints"><kbd>↑</kbd><kbd>↓</kbd> Navigate &nbsp; <kbd>Enter</kbd> Select</div>
+      </footer>
     </section>
 
     <section id="lobby" class="screen hidden">
@@ -97,21 +107,21 @@
         <div class="panel lobby-main">
           <div class="lobby-head">
             <div>
-              <div class="eyebrow">ROOM CODE</div>
-              <div id="lobby-code" class="code">----</div>
+              <div class="eyebrow">MULTIPLAYER</div>
+              <h2 class="lobby-title">PRIVATE MATCH</h2>
             </div>
             <div class="lobby-actions">
-              <button id="btn-copy-code" class="btn small">Copy code</button>
-              <button id="btn-copy-link" class="btn small">Copy invite link</button>
+              <button id="btn-copy-link" class="btn primary small">+ Invite Friends</button>
+              <button id="btn-copy-code" class="btn ghost small" title="Copy the 4-letter code">Code <span id="lobby-code" class="code-chip">----</span></button>
             </div>
           </div>
-          <p class="invite-help">Send your friends the invite link (or the code). They open the game, type the code under <b>Join Room</b>, and they're in. Works from any house with internet.</p>
+          <p class="invite-help">Invite Friends copies a link. Whoever opens it lands right in this lobby.</p>
           <div class="eyebrow">VOTE FOR THE MAP</div>
           <div id="lobby-vote"></div>
           <div id="lobby-config"></div>
           <div id="lobby-teams" class="hidden">
             <button class="btn small team-btn" data-team="1">Join Pristine Pines HOA</button>
-            <button class="btn small team-btn" data-team="2">Join Unmowed Rebels</button>
+            <button class="btn small team-btn" data-team="2">Join Backroad Boys</button>
           </div>
           <ul id="lobby-players"></ul>
           <div class="lobby-bottom">

@@ -830,6 +830,7 @@ function renderLobby() {
   if (!r) return;
   const isHost = r.host === S.myId;
   $('lobby-code').textContent = r.code;
+  document.querySelector('.lobby-title').textContent = r.pub ? 'PUBLIC MATCH' : 'PRIVATE MATCH';
   $('pause-code').textContent = r.code;
   // map vote
   const v = r.vote;
@@ -1194,6 +1195,28 @@ $('btn-settings').onclick = openSettings;
 $('btn-pause-settings').onclick = openSettings;
 $('btn-settings-close').onclick = () => { $('settings').classList.add('hidden'); void settingsReturn; };
 $('btn-howto').onclick = () => $('howto').classList.remove('hidden');
+// CoD-style menu: hover/focus updates the detail card; arrow keys move through the list
+{
+  const items = [...document.querySelectorAll('#cod-nav .cod-item')];
+  const detail = (el) => {
+    items.forEach((i) => i.classList.toggle('active', i === el));
+    $('detail-title').textContent = el.dataset.title || '';
+    $('detail-text').textContent = el.dataset.desc || '';
+    $('operators').classList.toggle('hidden', el.id !== 'btn-operators');
+  };
+  items.forEach((el) => { el.addEventListener('mouseenter', () => detail(el)); el.addEventListener('focus', () => detail(el)); });
+  $('btn-joinmenu').onclick = () => { $('join-panel').classList.toggle('hidden'); if (!$('join-panel').classList.contains('hidden')) $('join-code').focus(); };
+  $('btn-operators').onclick = () => detail($('btn-operators'));
+  document.addEventListener('keydown', (e) => {
+    if (screen !== 'menu' || document.activeElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const i = items.indexOf(document.activeElement);
+    const n = items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
+    n.focus();
+  });
+  detail(items[0]);
+}
 $('btn-howto-close').onclick = () => $('howto').classList.add('hidden');
 
 // ======================================================================= main loop
@@ -1276,6 +1299,7 @@ async function boot() {
   const q = new URLSearchParams(location.search).get('room');
   if (q) {
     $('join-code').value = q.toUpperCase().slice(0, 4);
+    $('join-panel').classList.remove('hidden');
     $('btn-join').classList.add('primary');
   }
   updateHudHp(); updateHudWeapon();
