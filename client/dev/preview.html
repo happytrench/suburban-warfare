@@ -28,7 +28,7 @@
   const scene = new THREE.Scene();
   const t = map.theme;
   scene.fog = new THREE.Fog(t.fog, t.fogNear ?? 45, t.fogFar ?? 170);
-  scene.add(buildSky(t));
+  scene.add(buildSky(t, map.id));
   scene.add(new THREE.HemisphereLight(t.hemiSky || '#dff1ff', t.hemiGround, t.hemiIntensity ?? 1.5));
   const sun = new THREE.DirectionalLight(t.sunColor || '#ffe2b0', t.sunIntensity ?? 3);
   if (t.exposure) renderer.toneMappingExposure = t.exposure;

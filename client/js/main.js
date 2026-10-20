@@ -139,7 +139,7 @@ function loadMap(id) {
   if (!worldCache.has(key)) worldCache.set(key, buildWorld(map));
   worldGroup = worldCache.get(key);
   scene.add(worldGroup);
-  skyMesh = buildSky(map.theme);
+  skyMesh = buildSky(map.theme, map.id);
   scene.add(skyMesh);
   applyTheme(map.theme);
   currentMapId = map.id;

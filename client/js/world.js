@@ -1213,7 +1213,7 @@ export function buildWorld(map) {
   return g;
 }
 
-export function buildSky(theme) {
+export function buildSky(theme, mapId = null) {
   const geo = new THREE.SphereGeometry(400, 24, 12);
   const top = new THREE.Color(theme.sky), mid = new THREE.Color(theme.horizon);
   const colors = [];
@@ -1225,5 +1225,25 @@ export function buildSky(theme) {
   }
   geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false, toneMapped: false }));
+  // High: a real photographed sky (Poly Haven CC0 pure-sky panorama) fades in once loaded
+  if (QUALITY === 'high' && mapId) {
+    new THREE.TextureLoader().load(new URL(`../vendor/textures/sky/${mapId}.jpg`, import.meta.url).href, (t) => {
+      t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+      m.material = new THREE.ShaderMaterial({
+        uniforms: { map: { value: t }, low: { value: mid.clone() }, vivid: { value: theme.night ? 1.1 : 1.25 } },
+        vertexShader: 'varying vec3 vD; varying vec2 vUv; void main(){ vD = normalize(position); vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position.z = gl_Position.w; }',
+        fragmentShader: `uniform sampler2D map; uniform vec3 low; uniform float vivid; varying vec3 vD; varying vec2 vUv;
+          void main(){
+            vec3 c = texture2D(map, vUv).rgb;
+            float l = dot(c, vec3(0.299, 0.587, 0.114));
+            c = mix(vec3(l), c, vivid);                                     // a little more saturation than the tonemapped photo
+            c = mix(low, c, smoothstep(-0.06, 0.05, vD.y));                 // below the horizon: blend into the map's haze
+            gl_FragColor = vec4(c, 1.0);
+            #include <colorspace_fragment>
+          }`,
+        side: THREE.BackSide, depthWrite: false, fog: false,
+      });
+    });
+  }
   return m;
 }
