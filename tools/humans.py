@@ -224,15 +224,45 @@ def tris_of(faces):
 
 class Prim:
     """Collects triangles with split (vertex, uv) corners."""
-    def __init__(self, name, mat): self.name, self.mat, self.key, self.pos, self.nrm, self.uv, self.sk, self.idx = name, mat, {}, [], [], [], [], []
-    def add(self, tri, uvt, P, N, UV, W, off=None):
+    def __init__(self, name, mat): self.name, self.mat, self.key, self.pos, self.nrm, self.uv, self.sk, self.idx, self.ao = name, mat, {}, [], [], [], [], [], []
+    def add(self, tri, uvt, P, N, UV, W, off=None, A=None):
         for v, t in zip(tri, uvt):
             k = (v, t)
             if k not in self.key:
                 self.key[k] = len(self.pos)
                 p = P[v] + (N[v] * (off[v] if off is not None else 0))
-                self.pos.append(p); self.nrm.append(N[v]); self.uv.append(UV[t]); self.sk.append(W[v])
+                self.pos.append(p); self.nrm.append(N[v]); self.uv.append(UV[t]); self.sk.append(W[v]); self.ao.append(1.0 if A is None else A[v])
             self.idx.append(self.key[k])
+    def raw(self, p, n, uv, w, ao=1.0):
+        self.pos.append(p); self.nrm.append(n); self.uv.append(uv); self.sk.append(w); self.ao.append(ao)
+        return len(self.pos) - 1
+
+def bake_ao(V, N, faces, nbs, mask=None):
+    """Cheap ambient occlusion: concavity over a few rings + nearby surface in front of each vertex."""
+    from scipy.spatial import cKDTree
+    used = np.zeros(len(V), bool)
+    for f, _ in faces: used[f] = True
+    idx = np.nonzero(used)[0]
+    P = V.copy()
+    cav = np.zeros(len(V))
+    for _ in range(3):  # multi-ring average position
+        P2 = P.copy()
+        for i in idx:
+            n = nbs[i]
+            if len(n): P2[i] = P[n].mean(0)
+        P = P2
+    cav[idx] = ((P[idx] - V[idx]) * N[idx]).sum(1)          # >0: vertex sits in a dent / crease
+    tree = cKDTree(V[idx])
+    prox = np.zeros(len(V))
+    for j, i in enumerate(idx):
+        near = tree.query_ball_point(V[i], 6.0)
+        if len(near) < 2: continue
+        d = V[idx[near]] - V[i]
+        front = (d @ N[i]) > 0.8
+        dist = np.linalg.norm(d[front], axis=1) if front.any() else np.array([])
+        prox[i] = np.clip((1 - dist / 6.0), 0, 1).sum() / 25.0
+    ao = 1 - np.clip(cav * 0.9, 0, 0.45) - np.clip(prox, 0, 0.45)
+    return np.clip(ao, 0.35, 1.0)
 
 def top4(w):
     i = np.argsort(-w)[:4]; ww = w[i]; ww = ww / ww.sum()
@@ -274,7 +304,7 @@ def eye_tex(path, iris):
 
 # ------------------------------------------------------------------ characters
 CHAR = {
-    'bubba': dict(height=1.83, macro=dict(gender=1, age=38, muscle=0.55, weight=1.0), targets=[('stomach/stomach-pregnant-incr', 0.9), ('bodyshapes/bodyshapes-elvs-man-apple', 0.8), ('neck/neck-double-incr', 1), ('head/head-fat-incr', 0.6)],
+    'bubba': dict(height=1.83, belt=True, macro=dict(gender=1, age=38, muscle=0.55, weight=1.0), targets=[('stomach/stomach-pregnant-incr', 0.9), ('bodyshapes/bodyshapes-elvs-man-apple', 0.8), ('neck/neck-double-incr', 1), ('head/head-fat-incr', 0.6)],
                   skin='#e8b08f', flush=0.55, hair=('mullet', '#6b4423'), beard=('full', '#6b4423'), brows='#5a3a20',
                   clothes=[('tank', 'jersey', '#ece9df', 0.35), ('pants', 'denim', '#ffffff', 0.55), ('boots', 'leather', '#9a6a48', 0.9)]),
     'cletus': dict(height=1.93, macro=dict(gender=1, age=29, muscle=0.35, weight=0.0, height=0.9), targets=[('stomach/stomach-pregnant-decr', 0.4), ('l-ear', 0), ('ears/l-ear-wing-incr', 1), ('ears/r-ear-wing-incr', 1), ('chin/chin-prominent-decr', 0.6), ('nose/nose-hump-incr', 0.8)],
@@ -286,19 +316,19 @@ CHAR = {
     'hank': dict(height=1.8, macro=dict(gender=1, age=56, muscle=0.6, weight=0.85), targets=[('stomach/stomach-pregnant-incr', 0.8), ('bodyshapes/bodyshapes-elvs-man-apple', 0.5), ('neck/neck-double-incr', 0.7), ('nose/nose-scale-horiz-incr', 0.6)],
                  skin='#dda083', flush=0.7, hair=('short', '#8c8680'), mustache=('handlebar', '#8a7f74'), stubble=0.6, brows='#6f665e',
                  clothes=[('shirt_long', 'flannel', '#ffffff', 0.45), ('pants', 'denim', '#9fb0c4', 0.55), ('boots', 'leather', '#8a6040', 0.9)]),
-    'jimbo': dict(height=1.78, macro=dict(gender=1, age=44, muscle=0.5, weight=0.75), targets=[('stomach/stomach-pregnant-incr', 0.55), ('bodyshapes/bodyshapes-elvs-man-apple', 0.4)],
+    'jimbo': dict(height=1.78, sole='#dcdcd6', macro=dict(gender=1, age=44, muscle=0.5, weight=0.75), targets=[('stomach/stomach-pregnant-incr', 0.55), ('bodyshapes/bodyshapes-elvs-man-apple', 0.4)],
                   skin='#e6ac88', flush=0.5, hair=('short', '#5a4030'), beard=('goatee', '#5a4030'), stubble=0.6, brows='#4a3020',
                   clothes=[('shirt_short', 'camo', '#ffffff', 0.4), ('shorts', 'linen', '#6b6a4a', 0.55), ('boots_high', 'rubber', '#eeeeea', 0.9)]),
-    'chad': dict(height=1.86, macro=dict(gender=1, age=26, muscle=1.0, weight=0.45), targets=[('torso/torso-vshape-incr', 1), ('torso/torso-muscle-pectoral-incr', 0.6), ('chin/chin-prominent-incr', 0.8), ('chin/chin-width-incr', 0.6), ('head/head-square', 0.6)],
+    'chad': dict(height=1.86, collar=True, sole='#f2efe8', macro=dict(gender=1, age=26, muscle=1.0, weight=0.45), targets=[('torso/torso-vshape-incr', 1), ('torso/torso-muscle-pectoral-incr', 0.6), ('chin/chin-prominent-incr', 0.8), ('chin/chin-width-incr', 0.6), ('head/head-square', 0.6)],
                  skin='#e9b48c', flush=0.25, tan=True, hair=('slick', '#d2ad55'), brows='#a07a3a',
                  clothes=[('shirt_short', 'jersey', '#9fd3f0', 0.4), ('shorts', 'linen', '#f4978e', 0.5), ('shoes', 'leather', '#b07a4a', 0.7)]),
-    'karen': dict(height=1.68, macro=dict(gender=0, age=46, muscle=0.45, weight=0.4), targets=[('chin/chin-triangle', 0.4)],
+    'karen': dict(height=1.68, belt=False, sole='#f2f2f2', macro=dict(gender=0, age=46, muscle=0.45, weight=0.4), targets=[('chin/chin-triangle', 0.4)],
                   skin='#f2cdb4', flush=0.25, lips='#b4636c', hair=('bob', '#e6cf96'), brows='#9a8050',
                   clothes=[('shirt_long', 'knit', '#c4b5fd', 0.45), ('leggings', 'jersey', '#26262c', 0.25), ('shoes', 'wleather', '#ffffff', 0.7)]),
-    'golfdad': dict(height=1.78, macro=dict(gender=1, age=58, muscle=0.5, weight=0.72), targets=[('stomach/stomach-pregnant-incr', 0.6), ('neck/neck-double-incr', 0.4)],
+    'golfdad': dict(height=1.78, collar=True, sole='#d8d8d8', beltColor='#1f2937', macro=dict(gender=1, age=58, muscle=0.5, weight=0.72), targets=[('stomach/stomach-pregnant-incr', 0.6), ('neck/neck-double-incr', 0.4)],
                     skin='#e6b494', flush=0.6, hair=('horseshoe', '#a3a3a3'), mustache=('push', '#8f8f8f'), brows='#8a8a8a',
                     clothes=[('shirt_short', 'jersey', '#1e3a5f', 0.4), ('pants', 'linen', '#d6c7a1', 0.5), ('shoes', 'wleather', '#ffffff', 0.7)]),
-    'brad': dict(height=1.8, macro=dict(gender=1, age=29, muscle=0.6, weight=0.35), targets=[('chin/chin-width-incr', 0.4)],
+    'brad': dict(height=1.8, sole='#f5f5f5', macro=dict(gender=1, age=29, muscle=0.6, weight=0.35), targets=[('chin/chin-width-incr', 0.4)],
                  skin='#ecbd98', flush=0.25, hair=('bun', '#3b2a1e'), stubble=0.75, brows='#3b2a1e',
                  clothes=[('shirt_long', 'linen', '#bcd4ee', 0.4), ('vest', 'knit', '#1f2a44', 0.9), ('pants', 'linen', '#4b5563', 0.45), ('shoes', 'wleather', '#ffffff', 0.7)]),
     'todd': dict(height=1.7, macro=dict(gender=1, age=62, muscle=0.4, weight=0.8, height=0.3), targets=[('stomach/stomach-pregnant-incr', 0.75), ('neck/neck-double-incr', 0.8), ('head/head-round', 0.5)],
@@ -378,12 +408,12 @@ def make_char(arch, spec):
         'shirt_long': [('ymin', waist - 7), ('axmax', wr - 2)], 'shirt_short': [('ymin', waist - 7), ('axmax', sh + (el - sh) * 0.55)],
         'crop': [('ymin', waist + 12), ('axmax', sh + (el - sh) * 0.15)], 'tank': [('ymin', waist - 7)], 'vest': [('ymin', waist - 7)],
     }
-    SMOOTH = {'pants': 7, 'shorts': 7, 'jorts': 6, 'overalls': 8, 'leggings': 5, 'boots': 8, 'boots_high': 8, 'shoes': 8,
+    SMOOTH = {'pants': 7, 'shorts': 7, 'jorts': 6, 'overalls': 8, 'leggings': 5, 'boots': 12, 'boots_high': 12, 'shoes': 14,
               'shirt_long': 9, 'shirt_short': 9, 'crop': 7, 'tank': 7, 'vest': 8}
     prims = []
     covered = np.zeros(len(V), bool)
     garments = []
-    THICK = {'pants': 0.9, 'shorts': 1.1, 'jorts': 0.9, 'overalls': 1.1, 'leggings': 0.45, 'boots': 1.0, 'boots_high': 1.0, 'shoes': 1.0,
+    THICK = {'pants': 0.9, 'shorts': 1.1, 'jorts': 0.9, 'overalls': 1.1, 'leggings': 0.45, 'boots': 1.1, 'boots_high': 1.1, 'shoes': 1.3,
              'shirt_long': 1.3, 'shirt_short': 1.3, 'crop': 0.6, 'tank': 1.05, 'vest': 2.1}
     for kind, mat, color, thick in spec['clothes']:
         thick = THICK.get(kind, thick)
@@ -408,6 +438,7 @@ def make_char(arch, spec):
             hair_m |= sides; hair_off = np.where(sides & ~scalp, 1.6 if hair_kind == 'bob' else 2.6, hair_off)
     elif hair_kind == 'horseshoe':
         hair_m = scalp & (z < eye_z - 7) & (y < brow_y + 3.5); hair_off[:] = 0.5
+    hair_off *= 0.8 + 0.4 * np.random.default_rng(len(arch)).random(len(V))   # clumpy, not a helmet
     beard_kind, beard_col = spec.get('beard', ('none', '#000'))
     beard_m = np.zeros(len(V), bool); beard_off = np.zeros(len(V))
     lowface = (headish | (G('Neck') > 0.4)) & (y < nose_y - 1) & (hz > ear_z + 1) & ~LIPS
@@ -429,13 +460,14 @@ def make_char(arch, spec):
     hide = covered.copy()
     for _ in range(2): hide = np.array([hide[i] and all(hide[j] for j in nb[i]) for i in range(len(V))])
     covered = hide
+    nbs = [np.array(sorted(set(n) - {i}), dtype=int) for i, n in enumerate(nb)]
+    AO = bake_ao(V, N, faces, nbs)
     skin_p = Prim('skin', {'kind': 'skinatlas'})
     for tri, uvt in tris:
         if covered[list(tri)].all(): continue
-        skin_p.add(tri, uvt, V, N, BVT, W)
+        skin_p.add(tri, uvt, V, N, BVT, W, A=AO)
     prims.append(skin_p)
-    nbs = [np.array(sorted(set(n) - {i}), dtype=int) for i, n in enumerate(nb)]
-    def shell(name, mat, m, off, clamps=(), smooth=0):
+    def shell(name, mat, m, off, clamps=(), smooth=0, hem=True, aoMul=1.0):
         """Offset copy of the body surface: grown one ring past the cut, smoothed so cloth hangs instead of
         hugging every muscle, then cut clean along the garment's hem planes."""
         ext = m.copy()
@@ -448,6 +480,31 @@ def make_char(arch, spec):
             lam = 0.55 if it % 2 == 0 else -0.58
             avg = np.array([Ps[n].mean(0) if len(n) else Ps[i] for i, n in zip(idx, nbl)])
             Ps[idx] = Ps[idx] + lam * (avg - Ps[idx])
+        if name in ('shoes', 'boots', 'boots_high', 'sole'):
+            # real shoe volume instead of shrink-wrapped toes: push every foot vertex out onto a
+            # rounded shoe hull built along the foot (heel -> toe), flat sole on the ground
+            for S in ('Left', 'Right'):
+                a0, a1 = J[f'{S}Foot'], J[f'{S}Toe_End']
+                ax2 = a1 - a0; ax2[1] = 0; L = np.linalg.norm(ax2); ax2 /= L
+                heel = a0 - ax2 * 6.5
+                side = np.cross([0, 1, 0], ax2)
+                sel = idx[(Ps[idx, 1] < a0[1] + 3) & (((Ps[idx] - a0) @ side) * (1 if S == 'Left' else -1) > -40) & (np.sign(Ps[idx, 0]) == (1 if S == 'Left' else -1))]
+                for i in sel:
+                    q = Ps[i]
+                    t = np.clip(((q - heel) @ ax2) / (L + 8.5), 0, 1)       # 0 heel .. 1 toe tip
+                    Wd = 4.3 + 1.2 * np.sin(np.pi * np.clip(t * 1.25, 0, 1)) - 1.6 * max(0, t - 0.8) / 0.2
+                    Ht = (a0[1] + 2.5) * (1 - 0.55 * t) + 0.6
+                    c = heel + ax2 * t * (L + 8.5); c = np.array([c[0], Ht * 0.5, c[2]])
+                    d = q - c; d -= ax2 * (d @ ax2)
+                    dl = np.linalg.norm(d)
+                    if dl < 1e-6: continue
+                    u = d / dl
+                    sx, sy = abs(u @ side), abs(u[1])
+                    grow = 0.35 if name == 'sole' else 0.0
+                    r = 1 / ((sx / (Wd + 0.4 + grow)) ** 4 + (sy / (Ht * 0.5 + 0.3 + grow)) ** 4) ** 0.25   # superellipse: boxy-round
+                    Ps[i] = c + ax2 * ((q - c) @ ax2) + u * r
+                    if t > 0.97: Ps[i] = Ps[i] - ax2 * (t - 0.97) * 30 * 0          # keep tip rounded
+                    Ps[i][1] = max(Ps[i][1], 0.0)
         for kind, val in clamps:
             if kind == 'ymin': Ps[idx, 1] = np.maximum(Ps[idx, 1], val)
             elif kind == 'ymax': Ps[idx, 1] = np.minimum(Ps[idx, 1], val)
@@ -455,10 +512,42 @@ def make_char(arch, spec):
         p = Prim(name, mat)
         sf = [(f, ft) for f, ft in faces if ext[f].all()]
         Ns = vnormals(Ps, sf)                                    # shade the cloth surface, not the skin under it
-        for tri, uvt in tris:
-            if ext[list(tri)].all(): p.add(tri, uvt, Ps, Ns, BVT, W)
+        A = np.clip(AO * aoMul + (1 - aoMul), 0, 1)
+        st = [(tri, uvt) for tri, uvt in tris if ext[list(tri)].all()]
+        for tri, uvt in st: p.add(tri, uvt, Ps, Ns, BVT, W, A=A)
+        if hem and st:
+            # cloth thickness: close every open edge back down to the skin (no paper-thin hems)
+            cnt, v2t = {}, {}
+            for tri, uvt in st:
+                for a, b, ta in ((tri[0], tri[1], uvt[0]), (tri[1], tri[2], uvt[1]), (tri[2], tri[0], uvt[2])):
+                    k = (min(a, b), max(a, b)); cnt[k] = cnt.get(k, 0) + 1
+                for v, t in zip(tri, uvt): v2t.setdefault(v, t)
+            for (a, b), c in cnt.items():
+                if c != 1: continue
+                ia = [p.raw(Ps[v], -Ns[v] * 0 + (Ps[v] - V[v]) / (np.linalg.norm(Ps[v] - V[v]) + 1e-6) * 0, BVT[v2t[v]], W[v], A[v] * 0.92) for v in (a, b)]
+                ib = [p.raw(V[v] + N[v] * 0.08, Ns[v], BVT[v2t[v]], W[v], A[v] * 0.8) for v in (a, b)]
+                e = Ps[b] - Ps[a]; dn = np.cross(e, (Ps[a] - V[a])); dn = dn / (np.linalg.norm(dn) + 1e-9)
+                for k in ia + ib: p.nrm[k] = dn
+                p.idx += [ia[0], ia[1], ib[1], ia[0], ib[1], ib[0], ia[0], ib[1], ia[1], ia[0], ib[0], ib[1]]  # both windings
         if p.idx: prims.append(p)
     for kind, mat, color, m, off in garments: shell(kind, {'kind': mat, 'color': color}, m, off, CL.get(kind, ()), SMOOTH.get(kind, 0))
+    # belt over the waistband
+    lower = next((g for g in garments if g[0] in ('pants', 'shorts', 'jorts')), None)
+    if lower and spec.get('belt', False):
+        bm = (y > waist - 3.2) & (y < waist + 1.0) & ~handish & ~armish & ~headish
+        shell('belt', {'kind': 'leather', 'color': spec.get('beltColor', '#6a4a32')}, bm, np.full(len(V), lower[4].max() + 0.3), (('ymin', waist - 2.9), ('ymax', waist + 0.7)), 4)
+    # polo collar standing up around the neck
+    if spec.get('collar'):
+        tg = next((g for g in garments if g[0].startswith('shirt')), None)
+        if tg:
+            cm = (y > neck - 7) & (y < neck + 0.5) & ~headish & ~armish & (ax < 9)
+            coff = tg[4].max() + 0.35 + np.clip((y - (neck - 7)) / 7, 0, 1) * 1.6
+            shell('collar', {'kind': tg[1], 'color': spec.get('collarColor', tg[2])}, cm, coff, (('ymin', neck - 6.5),), 3)
+    # rubber soles under shoes and boots
+    foot = next((g for g in garments if g[0] in ('shoes', 'boots', 'boots_high')), None)
+    if foot:
+        sm = y < 2.6
+        shell('sole', {'kind': 'rubber', 'color': spec.get('sole', '#2b2724')}, sm, np.full(len(V), foot[4].max() + 0.4), (('ymax', 2.0), ('ymin', 0.0)), 14, aoMul=0.5)
     if hair_m.any(): shell('hair', {'kind': 'hair', 'color': hair_col}, hair_m, hair_off, (), 6)
     if beard_m.any(): shell('beard', {'kind': 'hair', 'color': beard_col}, beard_m, beard_off, (), 3)
     # eyes, eyelashes from helper groups
@@ -510,9 +599,10 @@ def make_char(arch, spec):
         pos = np.array(p.pos, np.float32); nrm = np.array(p.nrm, np.float32); uv = np.array(p.uv, np.float32)
         si = np.zeros((len(pos), 4), np.uint8); sw = np.zeros((len(pos), 4), np.uint8)
         for k, w in enumerate(p.sk): i, q = top4(w); si[k] = i; sw[k] = q
+        aoa = np.round(np.clip(np.array(p.ao, np.float32), 0, 1) * 255).astype(np.uint8)
         idx = np.array(p.idx, np.uint16 if len(pos) < 65536 else np.uint32)
         ent = {'name': p.name, 'mat': p.mat, 'count': len(pos), 'indexCount': len(idx), 'index32': idx.dtype == np.uint32}
-        for key, arr in (('pos', np.round(pos * 100).astype(np.int16)), ('nrm', (np.clip(nrm, -1, 1) * 32767).astype(np.int16)), ('uv', np.round(np.clip(uv, 0, 1) * 65535).astype(np.uint16)), ('si', si), ('sw', sw), ('idx', idx)):
+        for key, arr in (('pos', np.round(pos * 100).astype(np.int16)), ('nrm', (np.clip(nrm, -1, 1) * 32767).astype(np.int16)), ('uv', np.round(np.clip(uv, 0, 1) * 65535).astype(np.uint16)), ('si', si), ('sw', sw), ('ao', aoa), ('idx', idx)):
             while len(blob) % 4: blob.append(0)
             ent[key] = len(blob); blob += arr.tobytes()
         header['prims'].append(ent)

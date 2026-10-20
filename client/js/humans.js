@@ -24,12 +24,13 @@ export function loadHuman(arch) {
       g.setAttribute('uv', new THREE.BufferAttribute(new Uint16Array(bin, p.uv, p.count * 2), 2, true));
       g.setAttribute('skinIndex', new THREE.BufferAttribute(new Uint8Array(bin, p.si, p.count * 4), 4));
       g.setAttribute('skinWeight', new THREE.BufferAttribute(new Uint8Array(bin, p.sw, p.count * 4), 4, true));
+      if (p.ao != null) { const a = new Uint8Array(bin, p.ao, p.count), c = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) c[i * 3] = c[i * 3 + 1] = c[i * 3 + 2] = a[i] / 255; g.setAttribute('color', new THREE.BufferAttribute(c, 3)); }
       g.setIndex(new THREE.BufferAttribute(p.index32 ? new Uint32Array(bin, p.idx, p.indexCount) : new Uint16Array(bin, p.idx, p.indexCount), 1));
       g.computeBoundingSphere();
       return g;
     });
     const a = { h, geos, skinTex };
-    a.mats = h.prims.map((p) => materialFor(p.mat, a));
+    a.mats = h.prims.map((p) => { const m = materialFor(p.mat, a); if (p.ao == null) return m; const c = m.clone(); c.vertexColors = true; return c; });
     return a;
   })().catch(() => null);
   assets.set(arch, p);
