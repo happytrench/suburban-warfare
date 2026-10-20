@@ -39,6 +39,8 @@
   Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, far: 200 });
   scene.add(sun);
   await loadTreeTextures();
+  await (await import('../js/textures.js')).loadPhotoTextures();
+  await (await import('../js/props.js')).loadProps();
   scene.add(buildWorld(map));
 
   const chars = q.get('lineup') ? [

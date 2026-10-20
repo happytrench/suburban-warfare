@@ -8,9 +8,46 @@ function rng(seed) {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
 
+// Photo-scanned replacements (Poly Haven CC0, see tools/worldmats.py): when loaded, a texture key
+// uses the photo + its normal map instead of the painted canvas. mult = extra tiling (photos
+// cover less ground per tile than the painted versions were drawn for).
+const PHOTO_BASE = new URL('../vendor/textures/world/', import.meta.url).href;
+const PHOTO = {
+  pasture: ['pasture', 3], fairground: ['fairground', 2],
+  asphalt: ['asphalt', 3], concrete: ['concrete', 2], brick: ['brick', 2], shingles: ['roof', 2],
+  siding: ['siding', 1.5], bark: ['bark', 1], sand: ['sand', 3], dirt: ['dirt', 3], metal: ['metal', 1],
+  planks: ['planks', 1], wood: ['wood', 1],
+};
+const photos = new Map(); // name -> { img, nor }
+let usePhotos = true;
+export function setPhotoTextures(on) { usePhotos = on; }
+export function loadPhotoTextures() {
+  const ld = (u) => new Promise((res) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = () => res(null); i.src = u; });
+  const names = [...new Set(Object.values(PHOTO).map((p) => p[0]))];
+  return Promise.all(names.map(async (n) => {
+    const [img, nor] = await Promise.all([ld(`${PHOTO_BASE}${n}_diff.jpg`), ld(`${PHOTO_BASE}${n}_nor.jpg`)]);
+    if (img) photos.set(n, { img, nor });
+  }));
+}
+
 function make(key, size, draw, repeat = [1, 1]) {
-  const k = key + repeat.join('x');
+  const ph = usePhotos && PHOTO[key] && photos.get(PHOTO[key][0]);
+  const k = key + repeat.join('x') + (ph ? ':photo' : '');
   if (cache.has(k)) return cache.get(k);
+  if (ph) {
+    const m = PHOTO[key][1];
+    const t = new THREE.Texture(ph.img); t.needsUpdate = true;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat[0] * m, repeat[1] * m);
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+    if (ph.nor) {
+      const n = new THREE.Texture(ph.nor); n.needsUpdate = true;
+      n.wrapS = n.wrapT = THREE.RepeatWrapping; n.repeat.copy(t.repeat); n.anisotropy = 8;
+      t.userData.normal = n;
+    }
+    t.userData.photo = true;
+    cache.set(k, t);
+    return t;
+  }
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const g = c.getContext('2d');
