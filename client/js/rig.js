@@ -9,6 +9,7 @@ import { buildGunModel } from './characters.js';
 import { loadMixamo, skeletonTemplate, mixamoClips } from './mixamo.js';
 import { buildCaricature, buildHumanGear, pickArchetype, ARCHETYPES } from './caricatures.js';
 import { loadHuman, attachHuman } from './humans.js';
+import { measureHands, holdGun } from './ik.js';
 
 const humans = new Map(); // archetype -> generated human asset, once loaded
 
@@ -192,13 +193,15 @@ export function buildRiggedCharacter({ id, color, outfit }) {
   const unit = bones.Hips.getWorldScale(new THREE.Vector3()).x; // armature units → metres
 
   const archetype = pickArchetype(outfit, id);
-  let meshesForFlash = null, pendingHuman = null;
+  let meshesForFlash = null, pendingHuman = null, handRest = null, headRest = null;
   if (skinned) {
     addFactionGear(bones, o, color, unit);
   } else if (clips.back && humans.has(archetype)) {
     const h = humans.get(archetype);
     meshesForFlash = attachHuman(model, h);
     model.updateMatrixWorld(true);
+    handRest = measureHands(bones);
+    headRest = bones.Head.getWorldQuaternion(new THREE.Quaternion()); // model space == holder space at build time (no parent yet)
     buildHumanGear(bones, bones.Hips.getWorldScale(new THREE.Vector3()).x, archetype, color, h.h.metrics);
   } else if (clips.back) {
     buildCaricature(bones, unit, archetype, color);
@@ -304,7 +307,26 @@ export function buildRiggedCharacter({ id, color, outfit }) {
   };
   // with rifle mocap the hands already hold an aim pose: the gun follows the right hand, aimed forward
   const hand = new THREE.Vector3(), lhand = new THREE.Vector3();
+  const shoulder = new THREE.Vector3(), hq = new THREE.Quaternion(), pq = new THREE.Quaternion(), X = new THREE.Vector3(1, 0, 0);
+  const placeGunHuman = (pitch) => {
+    // gun butt in the right shoulder pocket, aimed where the player looks; hands solved onto it
+    holder.updateMatrixWorld(true);
+    bones.RightArm.getWorldPosition(shoulder); holder.worldToLocal(shoulder);
+    const cp = Math.cos(pitch), sp = Math.sin(pitch), ox = 0.07, oy = -0.08, oz = 0.34;
+    gun.position.set(shoulder.x + ox, shoulder.y + oy * cp + oz * sp, shoulder.z + oz * cp - oy * sp);
+    gun.rotation.set(-pitch, 0, 0);
+    const active = [rifle, shotgun, deer].find((g) => g.visible) || rifle;
+    holdGun(bones, handRest, active);
+    // head looks down the sights instead of at the floor
+    holder.getWorldQuaternion(hq);
+    pq.setFromAxisAngle(X, -pitch * 0.8);
+    const want = hq.multiply(pq).multiply(headRest);
+    bones.Head.parent.getWorldQuaternion(pq).invert();
+    bones.Head.quaternion.slerp(pq.multiply(want), 0.85);
+    bones.Head.updateMatrixWorld(true);
+  };
   const placeGun = (pitch) => {
+    if (handRest) { placeGunHuman(pitch); return; }
     bones.RightHand.getWorldPosition(hand); holder.worldToLocal(hand);
     bones.LeftHand.getWorldPosition(lhand); holder.worldToLocal(lhand);
     // aim along the line from the right hand toward the left (support) hand, levelled to the player's pitch
@@ -343,3 +365,4 @@ export function animateRig(rig, speed, dt, pitch, alive) {
 
 /** True once the realistic body for this archetype has loaded (remotes built before then can be rebuilt). */
 export const humanReady = (archetype) => humans.has(archetype);
+export const humanFor = (archetype) => humans.get(archetype) || null;

@@ -12,7 +12,9 @@ import { loadGuns } from './guns.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Net } from './net.js';
 import { Sfx } from './audio.js';
-import { loadRig, rigReady, buildRiggedCharacter, animateRig, humanReady } from './rig.js';
+import { loadRig, rigReady, buildRiggedCharacter, animateRig, humanReady, humanFor } from './rig.js';
+import { buildFPArms } from './fparms.js';
+import { pickArchetype } from './caricatures.js';
 import { updateMixamo, hitMixamo } from './mixamo.js';
 
 // ======================================================================= helpers
@@ -76,7 +78,22 @@ muzzleFlash.visible = false;
 const flashLight = new THREE.PointLight('#ffcc66', 0, 9);
 scene.add(flashLight);
 
+// the player's own arms/sleeves holding the gun (needs the realistic body for their character)
+let fp = null;
+const FP_ARMS = false; // first-person arms: still being tuned, off until the hand placement is finished
+function updateFPArms() {
+  if (!FP_ARMS) return;
+  const info = playerInfo(S.myId);
+  const arch = settings.quality === 'high' && S.myId != null ? pickArchetype(outfitFor(S.myId, info ? info.team : 0), S.myId) : null;
+  if (fp && fp.arch !== arch) { viewmodel.remove(fp.arms.root); fp = null; }
+  if (!fp && arch && humanFor(arch)) {
+    try { fp = { arch, arms: buildFPArms(humanFor(arch)), posed: null }; viewmodel.add(fp.arms.root); } catch (e) { console.warn('fp arms', e); fp = { arch, arms: { root: new THREE.Group(), pose() {} }, posed: null }; }
+  }
+  if (fp && fp.posed !== me.weapon) { fp.arms.pose(vmGuns[me.weapon]); fp.posed = me.weapon; }
+}
+
 function buildViewmodels() {
+  if (fp) { viewmodel.remove(fp.arms.root); fp = null; }
   for (const k of Object.keys(vmGuns)) viewmodel.remove(vmGuns[k]);
   for (const w of WEAPON_ORDER) {
     const g = buildGunModel(w, settings.quality);
@@ -617,6 +634,7 @@ function updateViewmodel(dt, now) {
   viewmodel.visible = showVm;
   if (!showVm) return;
   for (const w of WEAPON_ORDER) vmGuns[w].visible = w === me.weapon;
+  updateFPArms();
   me.recoil = Math.max(0, me.recoil - dt * 6);
   me.swapT = Math.max(0, (me.swapT || 0) - dt);
   const speed = Math.hypot(me.vel.x, me.vel.z);
@@ -632,7 +650,8 @@ function updateViewmodel(dt, now) {
     } else reloadDip = Math.sin((1 - left / total) * Math.PI);
   }
   const a = me.aimT;
-  viewmodel.position.set((0.2 + sway) * (1 - a), (-0.19 - Math.abs(sway)) * (1 - a) + (-0.11) * a - reloadDip * 0.18 - me.swapT * 0.8 + (me.sprinting ? -0.03 : 0), -0.42 + me.recoil * 0.05);
+  const sightY = (vmGuns[me.weapon].userData.sight ? vmGuns[me.weapon].userData.sight.y * 0.55 : 0.11);
+  viewmodel.position.set((0.2 + sway) * (1 - a), (-0.19 - Math.abs(sway)) * (1 - a) + (-sightY) * a - reloadDip * 0.18 - me.swapT * 0.8 + (me.sprinting ? -0.03 : 0), -0.42 + me.recoil * 0.05);
   viewmodel.rotation.set(me.recoil * 0.12 + reloadDip * 0.7, (me.sprinting ? 0.35 : 0) + reloadDip * 0.3, reloadDip * 0.4);
   muzzleFlash.position.copy(muzzleOffset(me.weapon)).multiply(new THREE.Vector3(1, 1, -1));
   if (muzzleFlash.visible) {

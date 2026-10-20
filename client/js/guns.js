@@ -70,8 +70,8 @@ function buildAR() {
   // charging handle
   g.add(prof([[-0.1, 0.044], [-0.085, 0.044], [-0.085, 0.05], [-0.1, 0.05]], 0.04, M.anod, 0.002));
   // free-float handguard (octagon) with top rail and M-LOK slots
-  const hg = new THREE.Mesh(new THREE.CylinderGeometry(0.0225, 0.0225, 0.34, 8), M.anod);
-  hg.rotation.set(Math.PI / 2, 0, Math.PI / 8); hg.position.set(0, 0.033, 0.33); hg.castShadow = true; g.add(hg);
+  const hgGeo = new THREE.CylinderGeometry(0.0225, 0.0225, 0.34, 8); hgGeo.rotateY(Math.PI / 8); hgGeo.rotateX(Math.PI / 2);
+  const hg = new THREE.Mesh(hgGeo, M.anod); hg.position.set(0, 0.033, 0.33); hg.castShadow = true; g.add(hg);
   rail(g, M.anod, 0.165, 0.5, 0.054);
   for (const sx of [-1, 1]) for (let z = 0.2; z < 0.48; z += 0.045) g.add(bx(0.003, 0.007, 0.03, M.poly, sx * 0.0215, 0.033, z));
   // barrel, gas block, compensator
