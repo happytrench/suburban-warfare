@@ -6,6 +6,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import * as TX from './textures.js';
 import { buildGunModel } from './characters.js';
+import { loadMixamo, skeletonTemplate, mixamoClips } from './mixamo.js';
+import { buildCaricature, pickArchetype } from './caricatures.js';
 
 let template = null;      // Xbot: animation source + fallback skeleton
 let bodyTemplate = null;  // textured, skinned character body (same Mixamo skeleton)
@@ -19,11 +21,12 @@ export function loadRig(base = 'vendor/models/') {
   if (loading) return loading;
   loading = (async () => {
     // A textured body can be dropped in here once a rig-compatible character with matching animations is available.
+    // preferred: Mixamo rifle animations (their skeleton comes with them)
+    if (await loadMixamo(base)) { template = skeletonTemplate; clips = mixamoClips; return true; }
     const [xbot, body] = [await loadGltf(`${base}Xbot.glb`), null];
     if (!xbot) return false;
     template = xbot.scene;
     for (const a of xbot.animations) {
-      // keep the animation in place: drop hips translation
       a.tracks = a.tracks.filter((t) => !/Hips\.position/.test(t.name));
       clips[a.name.toLowerCase()] = a;
     }
@@ -180,8 +183,11 @@ export function buildRiggedCharacter({ id, color, outfit }) {
     'LeftUpLeg', 'LeftLeg', 'LeftFoot', 'LeftToeBase', 'RightUpLeg', 'RightLeg', 'RightFoot', 'RightToeBase']) bones[n] = B(model, n);
   const unit = bones.Hips.getWorldScale(new THREE.Vector3()).x; // armature units → metres
 
+  const archetype = pickArchetype(outfit, id);
   if (skinned) {
     addFactionGear(bones, o, color, unit);
+  } else if (clips.back) {
+    buildCaricature(bones, unit, archetype, color);
   } else {
   // legs
   for (const s of ['Left', 'Right']) {
@@ -233,12 +239,13 @@ export function buildRiggedCharacter({ id, color, outfit }) {
   if (skinned) model.traverse((c) => { if (c.isSkinnedMesh && mixerRoot === model) mixerRoot = c; });
   const mixer = new THREE.AnimationMixer(mixerRoot);
   const actions = {};
-  for (const name of ['idle', 'walk', 'run']) {
-    if (!clips[name]) continue;
+  const rifleMocap = !!clips.back;   // full Mixamo rifle set available
+  for (const name of Object.keys(clips)) {
     const clip = skinned ? bodyClips[name] : clips[name];
     if (!clip) continue;
     const a = mixer.clipAction(clip);
-    a.play(); a.setEffectiveWeight(name === 'idle' ? 1 : 0);
+    if (/death|hit|jump/.test(name)) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = /death/.test(name); }
+    else { a.play(); a.setEffectiveWeight(name === 'idle' ? 1 : 0); }
     actions[name] = a;
   }
   mixer.update(Math.random());
@@ -280,10 +287,23 @@ export function buildRiggedCharacter({ id, color, outfit }) {
     aimBone('LeftArm', rot(0.3, -0.35, 0.9));
     aimBone('LeftForeArm', rot(-0.35, 0.12, 1));
   };
+  // with rifle mocap the hands already hold an aim pose: the gun follows the right hand, aimed forward
+  const hand = new THREE.Vector3(), lhand = new THREE.Vector3();
+  const placeGun = (pitch) => {
+    bones.RightHand.getWorldPosition(hand); holder.worldToLocal(hand);
+    bones.LeftHand.getWorldPosition(lhand); holder.worldToLocal(lhand);
+    // aim along the line from the right hand toward the left (support) hand, levelled to the player's pitch
+    gun.position.copy(hand);
+    const dir = lhand.sub(hand); dir.y = 0; const yaw = Math.atan2(dir.x, dir.z);
+    gun.rotation.set(-pitch, Math.abs(yaw) < 0.6 ? yaw : 0, 0, 'YXZ');
+    gun.position.y -= 0.02;
+  };
+  const rig = rifleMocap
+    ? { mixamo: true, mixer, actions, bones, model, placeGun, dead: false, deathAct: null, jumping: 0, w: { idle: 1, walk: 0, run: 0, back: 0, left: 0, right: 0 } }
+    : { mixer, actions, bones, pose, model };
   body.userData = {
     legs: [new THREE.Object3D(), new THREE.Object3D()], head: bones.Head, hips: holder, gun, rifle, shotgun, deer,
-    armR: new THREE.Object3D(), armL: new THREE.Object3D(),
-    rig: { mixer, actions, bones, pose, model },
+    armR: new THREE.Object3D(), armL: new THREE.Object3D(), rig, mocap: rifleMocap, archetype,
   };
   void Y;
   return body;

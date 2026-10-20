@@ -11,6 +11,7 @@ import { buildCharacter, nameTag, playerColor, buildGunModel, muzzleOffset } fro
 import { Net } from './net.js';
 import { Sfx } from './audio.js';
 import { loadRig, rigReady, buildRiggedCharacter, animateRig } from './rig.js';
+import { updateMixamo, hitMixamo } from './mixamo.js';
 
 // ======================================================================= helpers
 const $ = (id) => document.getElementById(id);
@@ -507,17 +508,27 @@ function updateRemotes(dt) {
       }
     }
     r.flinch = Math.max(0, (r.flinch || 0) - dt * 6);
-    ud.hips.rotation.x = -r.flinch * 0.18;
+    if (!ud.mocap) ud.hips.rotation.x = -r.flinch * 0.18;
     const speed = r.lastPos.distanceTo(r.obj.position) / Math.max(dt, 0.001);
     r.walk += dt * Math.min(speed, 10) * 1.6;
     const swing = Math.sin(r.walk) * Math.min(speed / 6, 1) * 0.7;
     ud.legs[0].rotation.x = swing; ud.legs[1].rotation.x = -swing;
     r.speedS = (r.speedS || 0) * 0.85 + Math.min(speed, 12) * 0.15;   // smoothed for animation blending
-    if (rig) animateRig(rig, alive ? r.speedS : 0, dt, s.pitch, alive);
+    if (rig && rig.mixamo) {
+      // movement relative to where they're facing → forward/back/strafe blend
+      const dx = r.obj.position.x - r.lastPos.x, dz = r.obj.position.z - r.lastPos.z;
+      const inv = 1 / Math.max(dt, 0.001), yaw = r.obj.rotation.y;
+      const vx = dx * inv, vz = dz * inv;
+      const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+      r.lv = r.lv || { f: 0, r: 0 };
+      r.lv.f += ((vx * fx + vz * fz) - r.lv.f) * 0.25;
+      r.lv.r += ((vx * -fz + vz * fx) - r.lv.r) * 0.25;
+      const vy = (r.obj.position.y - r.lastPos.y) * inv;
+      updateMixamo(rig, dt, r.lv, alive, s.pitch, Math.abs(vy) > 2.5);
+    } else if (rig) animateRig(rig, alive ? r.speedS : 0, dt, s.pitch, alive);
     // death: fall over; spawn protection: blink
     r.fall = alive ? Math.max(0, r.fall - dt * 4) : Math.min(1, r.fall + dt * 3);
-    ud.hips.parent.rotation.x = -r.fall * Math.PI / 2;
-    ud.hips.parent.position.y = r.fall * 0.25;
+    if (!ud.mocap) { ud.hips.parent.rotation.x = -r.fall * Math.PI / 2; ud.hips.parent.position.y = r.fall * 0.25; }
     r.tag.visible = alive;
     r.obj.visible = alive || r.fall < 1 || (performance.now() % 1000) < 900;
     if (s.flags & 8) r.obj.visible = (performance.now() % 300) < 200;
@@ -748,6 +759,7 @@ function flashRemote(id) {
   if (!r) return;
   r.flash = 0.12;
   r.flinch = 1;
+  if (r.obj.userData.rig && r.obj.userData.rig.mixamo) hitMixamo(r.obj.userData.rig);
 }
 
 function hitmarker(kind) {
