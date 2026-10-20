@@ -9,6 +9,7 @@ import { stepPlayer, raycastMap, rayPlayer } from '../shared/physics.js';
 import { buildWorld, buildSky, setQuality } from './world.js';
 import { buildCharacter, nameTag, playerColor, buildGunModel, muzzleOffset } from './characters.js';
 import { loadGuns } from './guns.js';
+import { createMuzzleFlash, spawnShell, spawnSmoke, updateGunFx } from './gunfx.js';
 import { loadTreeTextures } from './trees.js';
 import { loadProps } from './props.js';
 import * as TX from './textures.js';
@@ -73,24 +74,21 @@ const viewmodel = new THREE.Group();
 viewmodel.scale.setScalar(0.55);
 vmScene.add(viewmodel);
 const vmGuns = {};
-const muzzleFlash = new THREE.Mesh(
-  new THREE.SphereGeometry(0.07, 8, 6),
-  new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, opacity: 0.95 }),
-);
-muzzleFlash.visible = false;
+const muzzleFlash = createMuzzleFlash();
 const flashLight = new THREE.PointLight('#ffcc66', 0, 9);
 scene.add(flashLight);
 
 // the player's own arms/sleeves holding the gun (needs the realistic body for their character)
 let fp = null;
-const FP_ARMS = false; // first-person arms: still being tuned, off until the hand placement is finished
+const VM_BASE = new THREE.Vector3(0.09, -0.145, -0.25); // viewmodel rest position in front of the eye
+const FP_ARMS = true;
 function updateFPArms() {
   if (!FP_ARMS) return;
   const info = playerInfo(S.myId);
   const arch = settings.quality === 'high' && S.myId != null ? pickArchetype(outfitFor(S.myId, info ? info.team : 0), S.myId) : null;
   if (fp && fp.arch !== arch) { viewmodel.remove(fp.arms.root); fp = null; }
   if (!fp && arch && humanFor(arch)) {
-    try { fp = { arch, arms: buildFPArms(humanFor(arch)), posed: null }; viewmodel.add(fp.arms.root); } catch (e) { console.warn('fp arms', e); fp = { arch, arms: { root: new THREE.Group(), pose() {} }, posed: null }; }
+    try { fp = { arch, arms: buildFPArms(humanFor(arch), new THREE.Vector3(-VM_BASE.x, -VM_BASE.y, -VM_BASE.z).divideScalar(0.55)), posed: null }; viewmodel.add(fp.arms.root); } catch (e) { console.warn('fp arms', e); fp = { arch, arms: { root: new THREE.Group(), pose() {} }, posed: null }; }
   }
   if (fp && fp.posed !== me.weapon) { fp.arms.pose(vmGuns[me.weapon]); fp.posed = me.weapon; }
 }
@@ -294,7 +292,7 @@ const outfitFor = (id, team) => (mode() === 'tdm' ? (team === 2 ? 'country' : 's
 // ======================================================================= input
 const keys = new Set();
 let mouseDown = false, firedThisClick = false, chatOpen = false, scoreboardOpen = false;
-const locked = () => document.pointerLockElement === renderer.domElement;
+const locked = () => document.pointerLockElement === renderer.domElement || !!window.__swTestLock; // test hook for headless checks
 
 function requestLock() {
   sfx.unlock();
@@ -444,12 +442,18 @@ function tryFire(now) {
     tracer(_from, _to);
     if (kind === 2) impact(_to, 2);
   }
-  const kick = { rifle: [0.35, 0.012], shotgun: [1, 0.045], deer: [1.3, 0.06] }[me.weapon];
-  me.recoil = Math.min(me.recoil + kick[0], 1.6);
-  const k = kick[1] * (aimed ? 0.6 : 1);
-  me.kickPitch += k;                                  // visual kick that recovers...
-  me.pitch = clamp(me.pitch + k * 0.25, -1.5, 1.5);   // ...and a little that stays (pull down to control)
-  me.kickYaw += (Math.random() - 0.5) * k * 0.6;
+  // learnable recoil pattern: the rifle climbs straight up for the first few rounds, then drifts
+  // side to side; most of the climb stays (pull down to control it), a little snaps back
+  const burst = now - me.lastShot < 260 ? (me.burst || 0) + 1 : 0; me.burst = burst;
+  const R = { rifle: [0.0046, 0.00016, 0.0026], shotgun: [0.032, 0, 0.007], deer: [0.05, 0, 0.006] }[me.weapon];
+  const m = aimed ? 0.62 : 1;
+  const up = (R[0] + Math.min(burst, 12) * R[1]) * m * (0.9 + Math.random() * 0.2);
+  const side = (Math.sin(burst * 0.85 + 1.3) * (burst > 3 ? 1 : 0.25) + (Math.random() - 0.5) * 0.5) * R[2] * m;
+  me.pitch = clamp(me.pitch + up * 0.75, -1.5, 1.5);
+  me.yaw -= side * 0.75;
+  me.kickPitch += up * 0.8; me.kickYaw -= side * 0.3;
+  me.recoil = Math.min(me.recoil + (me.weapon === 'rifle' ? 0.35 : 1.2), 1.6);
+  vmKick(me.weapon, aimed);
   me.shake = Math.min(1, me.shake + (me.weapon === 'rifle' ? 0.12 : 0.5));
   me.bloom = Math.min(1, me.bloom + (me.weapon === 'rifle' ? 0.18 : 0.6));
   me.lastShot = now;
@@ -623,6 +627,24 @@ function updateCamera(dt) {
   }
 }
 
+const vmS = { z: { x: 0, v: 0 }, p: { x: 0, v: 0 }, r: { x: 0, v: 0 }, sx: 0, sy: 0, ly: null, lp: 0, cycle: 0, cycleLen: 1, ejected: true };
+function vmKick(w, aimed) {
+  const P = { rifle: [0.9, 1.4, 0.9], shotgun: [3.2, 5.5, 2.2], deer: [3.6, 6.5, 1.6] }[w];
+  const m = aimed ? 0.5 : 1;
+  vmS.z.v += P[0] * m; vmS.p.v += P[1] * m * (0.85 + Math.random() * 0.3); vmS.r.v += (Math.random() - 0.5) * P[2] * m;
+  const g = vmGuns[w];
+  if (w === 'rifle') ejectCase(g);
+  else { vmS.cycle = vmS.cycleLen = w === 'shotgun' ? 0.55 : 0.8; vmS.ejected = false; }
+  // smoke drifting off the muzzle
+  viewmodel.updateMatrixWorld(true);
+  if (g.userData.muzzle) spawnSmoke(vmScene, g.localToWorld(g.userData.muzzle.clone()), w === 'rifle' ? 1 : 3);
+}
+function ejectCase(g) {
+  if (!g.userData.eject) return;
+  viewmodel.updateMatrixWorld(true);
+  spawnShell(vmScene, g.localToWorld(g.userData.eject.clone()), g.userData.shell);
+}
+
 function updateViewmodel(dt, now) {
   // aim-down-sights: smooth zoom; sprinting or reloading drops aim
   const wantAim = me.ads && me.alive && inMatch() && !me.sprinting && !me.reloadUntil;
@@ -640,8 +662,25 @@ function updateViewmodel(dt, now) {
   updateFPArms();
   me.recoil = Math.max(0, me.recoil - dt * 6);
   me.swapT = Math.max(0, (me.swapT || 0) - dt);
+  const gun = vmGuns[me.weapon], gud = gun.userData;
   const speed = Math.hypot(me.vel.x, me.vel.z);
-  const sway = Math.sin(me.bob) * 0.012 * Math.min(1, speed / 6);
+  const a = me.aimT, hip = 1 - a * 0.85;
+  // springs: kick back, muzzle rise, roll — punchy on the shot, settle in ~0.15 s
+  for (const k of ['z', 'p', 'r']) {
+    const st = vmS[k], K = k === 'z' ? 260 : 190, C = 2 * Math.sqrt(K) * 0.72;
+    st.v += (-K * st.x - C * st.v) * dt; st.x += st.v * dt;
+  }
+  // weapon lags behind fast mouse movement, then catches up
+  if (vmS.ly == null) { vmS.ly = me.yaw; vmS.lp = me.pitch; }
+  let dy = me.yaw - vmS.ly; if (dy > Math.PI) dy -= Math.PI * 2; if (dy < -Math.PI) dy += Math.PI * 2;
+  const dp = me.pitch - vmS.lp; vmS.ly = me.yaw; vmS.lp = me.pitch;
+  const lagK = Math.min(1, dt * 12);
+  vmS.sx += (clamp(-dy * 1.6, -0.06, 0.06) - vmS.sx) * lagK; vmS.sy += (clamp(dp * 1.6, -0.05, 0.05) - vmS.sy) * lagK;
+  // walking bob: figure-eight, bigger while sprinting, nearly gone while aiming
+  const moveK = me.onGround ? Math.min(1, speed / 6) : 0.2;
+  const bob = me.bob || 0;
+  const bx = Math.sin(bob) * 0.011 * moveK * hip * (me.sprinting ? 1.8 : 1), byy = -Math.abs(Math.cos(bob)) * 0.009 * moveK * hip * (me.sprinting ? 1.8 : 1);
+  const breathe = Math.sin(now / 900) * 0.0018 * hip;
   let reloadDip = 0;
   if (me.reloadUntil) {
     const total = WEAPONS[me.weapon].reloadMs;
@@ -652,16 +691,31 @@ function updateViewmodel(dt, now) {
       updateHudWeapon();
     } else reloadDip = Math.sin((1 - left / total) * Math.PI);
   }
-  const a = me.aimT;
-  const sightY = (vmGuns[me.weapon].userData.sight ? vmGuns[me.weapon].userData.sight.y * 0.55 : 0.11);
-  viewmodel.position.set((0.2 + sway) * (1 - a), (-0.19 - Math.abs(sway)) * (1 - a) + (-sightY) * a - reloadDip * 0.18 - me.swapT * 0.8 + (me.sprinting ? -0.03 : 0), -0.42 + me.recoil * 0.05);
-  viewmodel.rotation.set(me.recoil * 0.12 + reloadDip * 0.7, (me.sprinting ? 0.35 : 0) + reloadDip * 0.3, reloadDip * 0.4);
-  muzzleFlash.position.copy(muzzleOffset(me.weapon)).multiply(new THREE.Vector3(1, 1, -1));
+  // shotgun pump / deer-rifle bolt cycle after each shot
+  if (vmS.cycle > 0) {
+    vmS.cycle = Math.max(0, vmS.cycle - dt);
+    const ph = 1 - vmS.cycle / vmS.cycleLen, slide = ph < 0.25 ? 0 : Math.sin(Math.min(1, (ph - 0.25) / 0.75) * Math.PI);
+    if (gud.pump) gud.pump.position.z = -0.085 * slide;
+    if (gud.bolt) for (const b of gud.bolt) b.o.position.x = b.x0 - 0.075 * slide;
+    if (!vmS.ejected && ph > 0.55) { vmS.ejected = true; ejectCase(gun); }
+  }
+  const sightY = (gud.sight ? gud.sight.y * 0.55 : 0.11);
+  const sprintDrop = me.sprinting ? 1 : 0;
+  viewmodel.position.set(
+    (VM_BASE.x + bx + vmS.sx * 0.5) * (1 - a) + vmS.sx * 0.15 * a,
+    (VM_BASE.y + byy + breathe + vmS.sy * 0.4) * (1 - a) + (-sightY) * a - reloadDip * 0.16 - me.swapT * 0.8 - sprintDrop * 0.04,
+    VM_BASE.z + vmS.z.x,
+  );
+  viewmodel.rotation.set(vmS.p.x + reloadDip * 0.6 - sprintDrop * 0.35 + vmS.sy * 0.8, sprintDrop * 0.55 + reloadDip * 0.25 + vmS.sx * 1.2, vmS.r.x + reloadDip * 0.45 + sprintDrop * 0.2 + bx * 1.5);
+  if (fp && fp.arms.pose) { fp.arms.pose(gun); fp.posed = me.weapon; }
+  muzzleFlash.position.copy(gud.muzzle || muzzleOffset(me.weapon)).multiply(new THREE.Vector3(-1, 1, -1));
   if (muzzleFlash.visible) {
     muzzleFlash.userData.t -= dt;
-    muzzleFlash.scale.setScalar(0.8 + Math.random() * 0.8);
+    muzzleFlash.scale.setScalar((0.7 + Math.random() * 0.6) * (me.weapon === 'rifle' ? 0.8 : 1.3));
+    muzzleFlash.rotation.z = Math.random() * Math.PI;
     if (muzzleFlash.userData.t <= 0) muzzleFlash.visible = false;
   }
+  updateGunFx(dt);
   flashLight.intensity = Math.max(0, flashLight.intensity - dt * 120);
 }
 
@@ -1317,5 +1371,5 @@ async function boot() {
 }
 
 // expose a tiny debug hook for automated tests
-window.__sw = { S, me, net, remotes, get screen() { return screen; } };
+window.__sw = { S, me, net, remotes, get screen() { return screen; }, fire: (now) => tryFire(now || performance.now()) };
 boot();

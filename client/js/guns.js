@@ -102,7 +102,7 @@ function buildAR() {
   const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0012, 10), M.dot); dot.position.set(0, 0.032, 0.0302); dot.rotation.y = Math.PI; rd.add(dot);
   rd.add(bx(0.012, 0.012, 0.012, M.anod, 0.02, 0.032, 0.02));
   rd.position.set(0, 0.062, -0.02); g.add(rd);
-  g.userData = { grip: new THREE.Vector3(0, -0.04, -0.035), fore: new THREE.Vector3(0, 0.025, 0.3), muzzle: new THREE.Vector3(0, 0.033, 0.68), sight: new THREE.Vector3(0, 0.094, 0.01) };
+  g.userData = { grip: new THREE.Vector3(0, -0.04, -0.035), fore: new THREE.Vector3(0, 0.025, 0.3), muzzle: new THREE.Vector3(0, 0.033, 0.68), sight: new THREE.Vector3(0, 0.094, 0.01), eject: new THREE.Vector3(-0.018, 0.034, 0.04), shell: 'brass' };
   return g;
 }
 
@@ -118,16 +118,17 @@ function buildShotgun() {
   g.add(cylZ(0.0115, 0.43, M.steel, 0.17, -0.012, 18));
   g.add(cylZ(0.0125, 0.02, M.steel, 0.6, -0.012, 18));
   // ribbed pump forend (walnut)
+  const pumpG = new THREE.Group(); g.add(pumpG);              // slides back and forward when racked
   const pump = new THREE.Mesh(new THREE.CylinderGeometry(0.0235, 0.0235, 0.2, 20), M.wood);
-  pump.rotation.x = Math.PI / 2; pump.scale.set(1, 1, 1.15); pump.position.set(0, -0.006, 0.33); pump.castShadow = true; g.add(pump);
-  for (let z = 0.25; z < 0.42; z += 0.012) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.0238, 0.0016, 6, 20), M.wood); r.position.set(0, -0.006, z); r.scale.set(1, 1.15, 1); g.add(r); }
+  pump.rotation.x = Math.PI / 2; pump.scale.set(1, 1, 1.15); pump.position.set(0, -0.006, 0.33); pump.castShadow = true; pumpG.add(pump);
+  for (let z = 0.25; z < 0.42; z += 0.012) { const r = new THREE.Mesh(new THREE.TorusGeometry(0.0238, 0.0016, 6, 20), M.wood); r.position.set(0, -0.006, z); r.scale.set(1, 1.15, 1); pumpG.add(r); }
   // trigger group
   g.add(prof([[-0.015, -0.03], [0.06, -0.03], [0.06, -0.05], [0.055, -0.056], [-0.015, -0.056]], 0.018, M.parker, 0.002));
   g.add(prof([[0.0, -0.03], [0.007, -0.03], [0.004, -0.048], [-0.002, -0.046]], 0.006, M.steel, 0.001));
   // walnut stock with pistol-grip wrist
   g.add(prof([[-0.075, 0.03], [-0.075, -0.03], [-0.06, -0.05], [-0.09, -0.09], [-0.12, -0.085], [-0.13, -0.05], [-0.45, -0.115], [-0.46, -0.11], [-0.46, 0.035], [-0.3, 0.03]], 0.04, M.wood, 0.007, 4));
   g.add(prof([[-0.475, -0.118], [-0.458, -0.118], [-0.458, 0.04], [-0.475, 0.04]], 0.044, M.poly, 0.004)); // recoil pad
-  g.userData = { grip: new THREE.Vector3(0, -0.05, -0.07), fore: new THREE.Vector3(0, -0.006, 0.33), muzzle: new THREE.Vector3(0, 0.022, 0.72), sight: new THREE.Vector3(0, 0.043, 0.0) };
+  g.userData = { grip: new THREE.Vector3(0, -0.05, -0.07), fore: new THREE.Vector3(0, -0.006, 0.33), fore0: 0.33, reach: 0.29, muzzle: new THREE.Vector3(0, 0.022, 0.72), sight: new THREE.Vector3(0, 0.043, 0.0), pump: pumpG, eject: new THREE.Vector3(-0.02, 0.012, 0.06), shell: 'shell' };
   return g;
 }
 
@@ -148,6 +149,11 @@ export function loadGuns() {
 
 /** Realistic gun for kind ('rifle'|'shotgun'|'deer'), or null if not available yet. */
 export function realGun(kind) {
-  if (kind === 'deer') { if (!deer) return null; const c = deer.clone(); c.userData = { ...deer.userData }; return c; }
+  if (kind === 'deer') {
+    if (!deer) return null;
+    const c = deer.clone(); c.userData = { ...deer.userData, eject: new THREE.Vector3(-0.02, 0.06, -0.02), shell: 'brass', bolt: [] };
+    c.traverse((o) => { if (/bolt/.test(o.name)) c.userData.bolt.push({ o, x0: o.position.x }); });
+    return c;
+  }
   return kind === 'shotgun' ? buildShotgun() : buildAR();
 }

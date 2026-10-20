@@ -45,17 +45,28 @@ function solve(B, rest, s, wrist, f, p, pole, blend = 1) {
   const target = basis(f, p).multiply(rest[s].frame.clone().invert()).multiply(rest[s].q);
   setWorldQ(hand, blend >= 1 ? target : worldQ(hand).slerp(target, blend));
 }
-/** Right hand on the pistol grip, left under the handguard / pump. gun: model with userData.grip/fore. */
-export function holdGun(B, rest, gun, reach = 0.24) {
+/** Where the wrists go on a gun (world space). */
+export function gunTargets(gun, reach = 0.24) {
   const ud = gun.userData;
-  if (!ud.grip) return;
+  if (!ud.grip) return null;
   gun.updateMatrixWorld(true);
   const W = (v) => gun.localToWorld(v.clone());
   const gq = worldQ(gun);
   const dirW = (v) => v.clone().applyQuaternion(gq).normalize();
-  const sc = gun.getWorldScale(new THREE.Vector3()).x;
-  const off = (x, y, z) => V(x, y, z).multiplyScalar(1); // offsets are in gun space (scaled by localToWorld)
-  solve(B, rest, 'Right', W(ud.grip.clone().add(off(-0.032, 0.035, -0.04))), dirW(V(0, -0.55, 1)), dirW(V(1, 0, 0)), dirW(V(-1, -1, 0)));
-  solve(B, rest, 'Left', W(ud.fore.clone().add(off(0.035, -0.04, -0.03)).setZ(Math.min(ud.fore.z, reach))), dirW(V(-1, 0.15, 0.35)), dirW(V(0, 1, 0)), dirW(V(1, -1.2, 0)));
-  void sc;
+  return {
+    Right: { wrist: W(ud.grip.clone().add(V(-0.032, 0.035, -0.04))), f: dirW(V(0, -0.55, 1)), p: dirW(V(1, 0, 0)), pole: dirW(V(-1, -1, 0)) },
+    Left: { wrist: W(ud.fore.clone().add(V(0.035, -0.04, -0.03)).setZ(Math.min(ud.fore.z, (ud.reach || reach) + (ud.pump ? ud.pump.position.z : 0)))), f: dirW(V(-1, 0.15, 0.35)), p: dirW(V(0, 1, 0)), pole: dirW(V(1, -1.2, 0)) },
+  };
+}
+/** Arm length (shoulder -> wrist when straight), world units. */
+export function armReach(B, s) {
+  const S = worldP(B[`${s}Arm`]), E = worldP(B[`${s}ForeArm`]), H = worldP(B[`${s}Hand`]);
+  return S.distanceTo(E) + E.distanceTo(H);
+}
+export const shoulderPos = (B, s) => worldP(B[`${s}Arm`]);
+/** Right hand on the pistol grip, left under the handguard / pump. gun: model with userData.grip/fore. */
+export function holdGun(B, rest, gun, reach = 0.24) {
+  const t = gunTargets(gun, reach);
+  if (!t) return;
+  for (const s of ['Right', 'Left']) solve(B, rest, s, t[s].wrist, t[s].f, t[s].p, t[s].pole);
 }
