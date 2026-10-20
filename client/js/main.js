@@ -10,6 +10,7 @@ import { buildWorld, buildSky, setQuality } from './world.js';
 import { buildCharacter, nameTag, playerColor, buildGunModel, muzzleOffset } from './characters.js';
 import { loadGuns } from './guns.js';
 import { createMuzzleFlash, spawnShell, spawnSmoke, updateGunFx } from './gunfx.js';
+import { reloadPose, endReload, updateDropped, drawPose, SPRINT_POSE } from './fpanim.js';
 import { loadTreeTextures } from './trees.js';
 import { loadProps } from './props.js';
 import * as TX from './textures.js';
@@ -112,7 +113,7 @@ function applyRenderSettings() {
   sun.castShadow = !!settings.shadows;
   const size = settings.quality === 'high' ? 2048 : 1024;
   if (sun.shadow.mapSize.x !== size) { sun.shadow.mapSize.set(size, size); if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * settings.scale);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, settings.quality === 'high' ? 1.25 : 1) * settings.scale);
   camera.fov = settings.fov; camera.updateProjectionMatrix();
   $('fps').classList.toggle('hidden', !settings.fps);
   sfx.setVolume(settings.vol);
@@ -394,7 +395,7 @@ function switchWeapon(w) {
   me.weapon = w;
   me.reloadUntil = 0;
   me.nextFire = performance.now() + 250;
-  me.swapT = 0.25;
+  me.swapT = 0.45;
   net.send({ t: 'w', w });
   updateHudWeapon();
 }
@@ -627,7 +628,7 @@ function updateCamera(dt) {
   }
 }
 
-const vmS = { z: { x: 0, v: 0 }, p: { x: 0, v: 0 }, r: { x: 0, v: 0 }, sx: 0, sy: 0, ly: null, lp: 0, cycle: 0, cycleLen: 1, ejected: true };
+const vmS = { sprintT: 0, airT: 0, wasGround: true, reloadingGun: null, z: { x: 0, v: 0 }, p: { x: 0, v: 0 }, r: { x: 0, v: 0 }, sx: 0, sy: 0, ly: null, lp: 0, cycle: 0, cycleLen: 1, ejected: true };
 function vmKick(w, aimed) {
   const P = { rifle: [0.9, 1.4, 0.9], shotgun: [3.2, 5.5, 2.2], deer: [3.6, 6.5, 1.6] }[w];
   const m = aimed ? 0.5 : 1;
@@ -681,16 +682,32 @@ function updateViewmodel(dt, now) {
   const bob = me.bob || 0;
   const bx = Math.sin(bob) * 0.011 * moveK * hip * (me.sprinting ? 1.8 : 1), byy = -Math.abs(Math.cos(bob)) * 0.009 * moveK * hip * (me.sprinting ? 1.8 : 1);
   const breathe = Math.sin(now / 900) * 0.0018 * hip;
-  let reloadDip = 0;
-  if (me.reloadUntil) {
+  const reloadDip = 0;
+  const off = [0, 0, 0, 0, 0, 0];
+  const addOff = (o, k = 1) => { for (let i = 0; i < 6; i++) off[i] += o[i] * k; };
+  let ov = null;
+  if (window.__swReloadU != null) { const rp = reloadPose(me.weapon, gun, window.__swReloadU, vmScene, viewmodel); addOff(rp.gun); ov = rp.ov; vmS.reloadingGun = gun; } // test hook: freeze a reload phase
+  else if (me.reloadUntil) {
     const total = WEAPONS[me.weapon].reloadMs;
     const left = me.reloadUntil - now;
     if (left <= 0) {
       me.reloadUntil = 0;
       me.ammo[me.weapon] = WEAPONS[me.weapon].mag;
       updateHudWeapon();
-    } else reloadDip = Math.sin((1 - left / total) * Math.PI);
-  }
+      endReload(gun);
+      if (me.weapon === 'shotgun') { vmS.cycle = vmS.cycleLen = 0.5; vmS.ejected = true; } // rack it
+      vmS.p.v -= 0.6;
+    } else {
+      const rp = reloadPose(me.weapon, gun, 1 - left / total, vmScene, viewmodel);
+      addOff(rp.gun); ov = rp.ov; vmS.reloadingGun = gun;
+    }
+  } else if (vmS.reloadingGun) { endReload(vmS.reloadingGun); vmS.reloadingGun = null; }
+  if (me.swapT > 0) addOff(drawPose(me.swapT / 0.45));
+  vmS.sprintT += ((me.sprinting && !me.reloadUntil ? 1 : 0) - vmS.sprintT) * Math.min(1, dt * 9);
+  addOff(SPRINT_POSE, vmS.sprintT);
+  // landing: the weapon dips and settles
+  if (me.onGround && !vmS.wasGround && vmS.airT > 0.25) { vmS.p.v -= 2.2; vmS.z.v += 0.6; }
+  vmS.airT = me.onGround ? 0 : vmS.airT + dt; vmS.wasGround = me.onGround;
   // shotgun pump / deer-rifle bolt cycle after each shot
   if (vmS.cycle > 0) {
     vmS.cycle = Math.max(0, vmS.cycle - dt);
@@ -700,14 +717,15 @@ function updateViewmodel(dt, now) {
     if (!vmS.ejected && ph > 0.55) { vmS.ejected = true; ejectCase(gun); }
   }
   const sightY = (gud.sight ? gud.sight.y * 0.55 : 0.11);
-  const sprintDrop = me.sprinting ? 1 : 0;
+  void reloadDip;
   viewmodel.position.set(
-    (VM_BASE.x + bx + vmS.sx * 0.5) * (1 - a) + vmS.sx * 0.15 * a,
-    (VM_BASE.y + byy + breathe + vmS.sy * 0.4) * (1 - a) + (-sightY) * a - reloadDip * 0.16 - me.swapT * 0.8 - sprintDrop * 0.04,
-    VM_BASE.z + vmS.z.x,
+    (VM_BASE.x + bx + vmS.sx * 0.5) * (1 - a) + vmS.sx * 0.15 * a + off[0],
+    (VM_BASE.y + byy + breathe + vmS.sy * 0.4) * (1 - a) + (-sightY) * a + off[1],
+    VM_BASE.z + vmS.z.x + off[2],
   );
-  viewmodel.rotation.set(vmS.p.x + reloadDip * 0.6 - sprintDrop * 0.35 + vmS.sy * 0.8, sprintDrop * 0.55 + reloadDip * 0.25 + vmS.sx * 1.2, vmS.r.x + reloadDip * 0.45 + sprintDrop * 0.2 + bx * 1.5);
-  if (fp && fp.arms.pose) { fp.arms.pose(gun); fp.posed = me.weapon; }
+  viewmodel.rotation.set(vmS.p.x + vmS.sy * 0.8 + off[3], vmS.sx * 1.2 + off[4], vmS.r.x + bx * 1.5 + off[5]);
+  if (fp && fp.arms.pose) { fp.arms.pose(gun, ov); fp.posed = me.weapon; }
+  updateDropped(dt);
   muzzleFlash.position.copy(gud.muzzle || muzzleOffset(me.weapon)).multiply(new THREE.Vector3(-1, 1, -1));
   if (muzzleFlash.visible) {
     muzzleFlash.userData.t -= dt;
@@ -1371,5 +1389,5 @@ async function boot() {
 }
 
 // expose a tiny debug hook for automated tests
-window.__sw = { S, me, net, remotes, get screen() { return screen; }, fire: (now) => tryFire(now || performance.now()) };
+window.__sw = { S, me, net, remotes, get screen() { return screen; }, fire: (now) => tryFire(now || performance.now()), reload: () => reload() };
 boot();

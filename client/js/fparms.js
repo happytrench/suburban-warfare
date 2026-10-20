@@ -47,7 +47,7 @@ export function buildFPArms(asset, camLocal = V(-0.24, 0.24, 0.4)) {
   // first-person cheat every shooter uses: longer forearms so the support hand reaches the handguard
   for (const s of ['Left', 'Right']) { B[`${s}ForeArm`].position.multiplyScalar(1.12); B[`${s}Hand`].position.multiplyScalar(1.12); }
   // draw only the arms (sleeves, hands): drop every triangle that belongs to the torso, legs or head
-  const armBone = (n) => /(Shoulder|Arm|ForeArm|Hand)/.test(n);
+  const armBone = (n) => /(ForeArm|Hand)/.test(n);
   model.traverse((o) => {
     if (!o.isSkinnedMesh) return;
     const names = o.skeleton.bones.map((b) => b.name.replace(/^mixamorig/, ''));
@@ -59,6 +59,8 @@ export function buildFPArms(asset, camLocal = V(-0.24, 0.24, 0.4)) {
       if (armBone(dom(a)) && armBone(dom(b)) && armBone(dom(c)) && !/Shoulder/.test(dom(a) + dom(b) + dom(c))) keep.push(a, b, c);
     }
     const g = o.geometry.clone(); g.setIndex(keep); o.geometry = g;
+    // open cut edges near the shoulder: draw back faces too so the sleeve never turns see-through
+    o.material = o.material.clone(); o.material.side = THREE.DoubleSide;
     if (!keep.length) o.visible = false;
   });
   // place the body: shoulders a little below and behind the camera (viewmodel-local camera ~ (-0.36, 0.35, 0.76))
@@ -70,7 +72,7 @@ export function buildFPArms(asset, camLocal = V(-0.24, 0.24, 0.4)) {
 
   /** Put the hands on a gun (a child of the same parent as root). */
   const base = holder.position.clone();
-  const pose = (gun) => {
+  const pose = (gun, ov = null) => {
     // slide the body toward the gun until both hands can reach comfortably (88% of arm length)
     holder.position.copy(base);
     for (let it = 0; it < 6; it++) {
@@ -87,7 +89,7 @@ export function buildFPArms(asset, camLocal = V(-0.24, 0.24, 0.4)) {
       holder.position.add(b2.sub(a).multiplyScalar(1.05));
     }
     root.parent.updateMatrixWorld(true);
-    holdGun(B, rest, gun, 0.2);
+    holdGun(B, rest, gun, 0.2, ov);
   };
   return { root, pose, model };
 }

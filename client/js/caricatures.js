@@ -48,14 +48,14 @@ function R(kind, color = '#ffffff', { rep = 2, rough = 1, metal = 0, map = null,
   const key = `${kind}|${color}|${rep}|${rough}|${tag}`;
   if (matCache.has(key)) return matCache.get(key);
   const [d, n, r, ns, sheen] = SETS[kind];
-  const m = new THREE.MeshPhysicalMaterial({
+  const m = new THREE.MeshStandardMaterial({
     color, roughness: rough, metalness: metal,
     map: map || T(d + '_diff', rep, true), normalMap: T(n + '_nor_gl', rep, false),
     roughnessMap: r ? T(r + '_rough', rep, false) : null,
   });
   m.normalScale.set(ns, ns);
-  if (sheen) { m.sheen = sheen; m.sheenRoughness = 0.7; m.sheenColor = new THREE.Color(color).lerp(new THREE.Color('#ffffff'), 0.5); }
-  if (kind === 'skin') { m.sheen = 0.12; m.sheenRoughness = 0.4; m.sheenColor = new THREE.Color('#ffb59c'); m.roughness = 1; m.emissive = new THREE.Color(color).multiply(new THREE.Color('#5a1a10')); m.emissiveIntensity = 0.2; } // fake subsurface: shadows go warm, not grey
+  void sheen;
+  if (kind === 'skin') { m.roughness = 1; m.emissive = new THREE.Color(color).multiply(new THREE.Color('#5a1a10')); m.emissiveIntensity = 0.2; } // fake subsurface: shadows go warm, not grey
   if (kind === 'hair') { m.roughness = 0.5; }
   matCache.set(key, m);
   return m;
@@ -321,7 +321,7 @@ function buildTodd(b, u, team) {
   const h = headBase(skin, 'old+green', { w: 1.04, h: 1.18, jaw: 0.6 });
   for (const sx of [-1, 1]) h.add(at(sph(0.045, HAIR('#6b5a48'), [0.55, 0.9, 1.2]), sx * 0.11, 0.1, -0.04)); // the horseshoe
   h.add(at(sph(0.09, HAIR('#6b5a48'), [1.3, 0.6, 0.6]), 0, 0.09, -0.1));
-  const glass = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.05, transmission: 0.9, transparent: true, opacity: 0.35 });
+  const glass = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.05, transparent: true, opacity: 0.35 });
   for (const sx of [-1, 1]) h.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.004, 16), glass), sx * 0.04, 0.115, 0.124, Math.PI / 2));
   h.add(at(box(0.026, 0.004, 0.004, gold()), 0, 0.118, 0.126));
   put(b.Head, h, u, [0, 0, 0.01], [0, 0, 0], 1.3);
@@ -432,7 +432,7 @@ export function buildHumanGear(b, u, arch, team, mt) {
       put(b.LeftHand, cyl(0.03, 0.03, 0.02, M('#111111', { roughness: 0.3 }), 16), u, [0, -0.03, 0], [0, 0, Math.PI / 2]);
       break;
     case 'todd': {
-      const glass = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.05, transmission: 0.9, transparent: true, opacity: 0.3 });
+      const glass = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.05, transparent: true, opacity: 0.3 });
       const g = grp(...[-1, 1].map((sx) => at(new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.003, 18), glass), sx * 0.033, 0, 0, Math.PI / 2)), box(0.022, 0.003, 0.003, gold()));
       H(g, 0, eyeY, glassZ + 0.004);
       put(b.Spine2, box(0.06, 0.08, 0.004, M('#f8fafc', { roughness: 0.3 })), u, [0, 0.0, 0.17]);

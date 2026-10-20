@@ -45,8 +45,8 @@ function grow(species, seed, lite = false) {
   t.options.bark.maps = { color: tex(`${bark}_Color.jpg`, true), normal: tex(`${bark}_NormalGL.jpg`), ao: null, roughness: null };
   t.options.leaves.map = tex(`${t.options.leaves.type}.png`, true);
   // trimmed for a game: fewer, larger leaf cards and lighter branch meshes
-  t.options.leaves.count = Math.max(4, Math.round(t.options.leaves.count * (lite ? 0.35 : 0.8)));
-  t.options.leaves.size *= lite ? 1.6 : 1.15;
+  t.options.leaves.count = Math.max(4, Math.round(t.options.leaves.count * (lite ? 0.3 : 0.55)));
+  t.options.leaves.size *= lite ? 1.7 : 1.35;
   if (lite) for (const k of Object.keys(t.options.branch.sections)) { t.options.branch.sections[k] = Math.max(1, Math.round(t.options.branch.sections[k] * 0.5)); t.options.branch.segments[k] = Math.max(3, Math.round(t.options.branch.segments[k] * 0.6)); }
   t.generate();
   t.updateMatrixWorld(true);
@@ -80,7 +80,7 @@ export function buildForest(items) {
   for (const { v, list } of groups.values()) {
     for (const src of [v.branches, v.leaves]) {
       const im = new THREE.InstancedMesh(src.geometry, src.material, list.length);
-      im.castShadow = true; im.receiveShadow = true;
+      im.castShadow = src === v.branches && !list[0].lite; im.receiveShadow = false;
       list.forEach((it, j) => {
         const want = it.h || (it.species === 'pine' ? it.r * 4.2 : it.r * 3.1 + 2.5);   // overall height in metres
         const sc = want / v.height;

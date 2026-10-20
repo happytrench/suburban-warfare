@@ -33,7 +33,7 @@ function materials() {
     parker: metal('#2c2d2f', 0.7, 0.6, 10),         // phosphate-finished parts
     poly: new THREE.MeshStandardMaterial({ color: '#141516', roughness: 0.82, metalness: 0, normalMap: T('metal_nor.jpg', 12) }),
     wood: new THREE.MeshPhysicalMaterial({ color: '#9c6a4c', map: T('wood_diff.jpg', 2, true), normalMap: T('wood_nor.jpg', 2), roughnessMap: T('wood_rough.jpg', 2), roughness: 0.75, clearcoat: 0.6, clearcoatRoughness: 0.25 }),
-    lens: new THREE.MeshPhysicalMaterial({ color: '#335', roughness: 0.05, metalness: 0.2, transmission: 0.2, transparent: true, opacity: 0.55 }),
+    lens: new THREE.MeshStandardMaterial({ color: '#335', roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.55 }),
     dot: new THREE.MeshBasicMaterial({ color: '#ff2020' }),
     brass: new THREE.MeshStandardMaterial({ color: '#c8a050', roughness: 0.3, metalness: 1 }),
   };
@@ -84,11 +84,14 @@ function buildAR() {
   g.add(prof([[0.0, -0.02], [0.006, -0.02], [0.002, -0.042], [-0.003, -0.04]], 0.006, M.steel, 0.001));
   g.add(prof([[-0.012, -0.05], [0.055, -0.05], [0.055, -0.03], [0.05, -0.03], [0.05, -0.045], [-0.012, -0.045]], 0.016, M.anod, 0.0015));
   // curved 30-round magazine
+  // (its own group, origin at the top of the magwell, so reloads can pull it out)
+  const SEAT = [0.059, -0.025];
   const mag = [];
-  for (let i = 0; i <= 10; i++) { const t = i / 10; mag.push([0.03 + t * t * 0.05 + t * 0.012, -0.025 - t * 0.17]); }
-  for (let i = 10; i >= 0; i--) { const t = i / 10; mag.push([0.088 + t * t * 0.05 + t * 0.012, -0.025 - t * 0.17 + (i === 10 ? 0.006 : 0)]); }
-  g.add(prof(mag, 0.022, M.parker, 0.003));
-  g.add(prof([[0.03 + 0.062, -0.195], [0.09 + 0.062, -0.195], [0.09 + 0.062, -0.183], [0.03 + 0.062, -0.183]], 0.026, M.poly, 0.003)); // baseplate
+  for (let i = 0; i <= 10; i++) { const t = i / 10; mag.push([0.03 + t * t * 0.05 + t * 0.012 - SEAT[0], -0.025 - t * 0.17 - SEAT[1]]); }
+  for (let i = 10; i >= 0; i--) { const t = i / 10; mag.push([0.088 + t * t * 0.05 + t * 0.012 - SEAT[0], -0.025 - t * 0.17 + (i === 10 ? 0.006 : 0) - SEAT[1]]); }
+  const magG = new THREE.Group(); magG.position.set(0, SEAT[1], SEAT[0]); g.add(magG);
+  magG.add(prof(mag, 0.022, M.parker, 0.003));
+  magG.add(prof([[0.092 - SEAT[0], -0.195 - SEAT[1]], [0.152 - SEAT[0], -0.195 - SEAT[1]], [0.152 - SEAT[0], -0.183 - SEAT[1]], [0.092 - SEAT[0], -0.183 - SEAT[1]]], 0.026, M.poly, 0.003)); // baseplate
   // buffer tube + collapsible stock
   g.add(cylZ(0.0145, 0.2, M.anod, -0.28, 0.032, 18));
   g.add(prof([[-0.36, -0.06], [-0.33, -0.065], [-0.2, 0.012], [-0.2, 0.052], [-0.3, 0.056], [-0.36, 0.05]], 0.04, M.poly, 0.005));
@@ -102,7 +105,7 @@ function buildAR() {
   const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0012, 10), M.dot); dot.position.set(0, 0.032, 0.0302); dot.rotation.y = Math.PI; rd.add(dot);
   rd.add(bx(0.012, 0.012, 0.012, M.anod, 0.02, 0.032, 0.02));
   rd.position.set(0, 0.062, -0.02); g.add(rd);
-  g.userData = { grip: new THREE.Vector3(0, -0.04, -0.035), fore: new THREE.Vector3(0, 0.025, 0.3), muzzle: new THREE.Vector3(0, 0.033, 0.68), sight: new THREE.Vector3(0, 0.094, 0.01), eject: new THREE.Vector3(-0.018, 0.034, 0.04), shell: 'brass' };
+  g.userData = { grip: new THREE.Vector3(0, -0.04, -0.035), fore: new THREE.Vector3(0, 0.025, 0.3), muzzle: new THREE.Vector3(0, 0.033, 0.68), sight: new THREE.Vector3(0, 0.094, 0.01), eject: new THREE.Vector3(-0.018, 0.034, 0.04), shell: 'brass', mag: magG, magSeat: magG.position.clone() };
   return g;
 }
 

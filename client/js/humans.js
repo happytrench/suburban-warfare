@@ -40,7 +40,7 @@ export const humanAsset = (arch) => assets.get(arch);
 
 function materialFor(m, a) {
   if (m.kind === 'skinatlas') {
-    const mat = new THREE.MeshPhysicalMaterial({ map: a.skinTex, roughness: 1, sheen: 0.15, sheenRoughness: 0.45, sheenColor: new THREE.Color('#ffb59c') });
+    const mat = new THREE.MeshStandardMaterial({ map: a.skinTex, roughness: 1 });
     skinDetail(mat);
     mat.emissive = new THREE.Color('#2a0a04'); mat.emissiveIntensity = 0.25; // shadows go warm like real skin
     return mat;

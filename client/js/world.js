@@ -38,7 +38,7 @@ const GRIME_GLSL = `
   float gHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float gNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
     return mix(mix(gHash(i), gHash(i + vec2(1, 0)), f.x), mix(gHash(i + vec2(0, 1)), gHash(i + vec2(1, 1)), f.x), f.y); }
-  float gFbm(vec2 p) { float a = 0.5, s = 0.0; for (int k = 0; k < 4; k++) { s += a * gNoise(p); p *= 2.03; a *= 0.5; } return s; }
+  float gFbm(vec2 p) { float a = 0.5, s = 0.0; for (int k = 0; k < 2; k++) { s += a * gNoise(p); p *= 2.03; a *= 0.5; } return s; }
 `;
 function grime(m) {
   m.onBeforeCompile = (sh) => {
@@ -58,10 +58,10 @@ function grime(m) {
           float big = gFbm(wp.xz * 0.06 + wp.y * 0.03);
           diffuseColor.rgb *= mix(0.8, 1.08, big);                                   // break up tiling
           float base = (1.0 - smoothstep(0.0, 1.1, wp.y)) * wall;                    // splash-back dirt
-          float bn = gFbm(vec2(wp.x + wp.z, wp.y) * 1.7);
+          float bn = gNoise(vec2(wp.x + wp.z, wp.y) * 1.7);
           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.52, 0.46, 0.38), base * (0.35 + 0.5 * bn));
           float sc = (wp.x + wp.z) * 2.6;                                             // rain streaks down walls
-          float streak = gNoise(vec2(sc, wp.y * 0.18)) * gNoise(vec2(sc * 3.1, wp.y * 0.6 + 7.0));
+          float streak = gNoise(vec2(sc, wp.y * 0.18)) * (0.6 + 0.4 * gHash(vec2(floor(sc * 3.1), 1.0)));
           diffuseColor.rgb *= 1.0 - wall * smoothstep(0.35, 0.8, streak) * 0.22;
           float stain = smoothstep(0.62, 0.8, gFbm(wp.xz * 0.35 + 3.7));             // stains / oil spots on the ground
           diffuseColor.rgb *= 1.0 - up * stain * 0.28;

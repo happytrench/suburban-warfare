@@ -65,8 +65,15 @@ export function armReach(B, s) {
 }
 export const shoulderPos = (B, s) => worldP(B[`${s}Arm`]);
 /** Right hand on the pistol grip, left under the handguard / pump. gun: model with userData.grip/fore. */
-export function holdGun(B, rest, gun, reach = 0.24) {
+export function holdGun(B, rest, gun, reach = 0.24, ov = null) {
   const t = gunTargets(gun, reach);
   if (!t) return;
+  if (ov && ov.Left) {
+    // animated support hand (reloads): wrist position in gun space blended with the normal grip
+    const L = t.Left, o = ov.Left, k = o.k == null ? 1 : o.k;
+    L.wrist.lerp(gun.localToWorld(o.pos.clone()), k);
+    if (o.f) L.f.lerp(o.f.clone().applyQuaternion(worldQ(gun)), k).normalize();
+    if (o.p) L.p.lerp(o.p.clone().applyQuaternion(worldQ(gun)), k).normalize();
+  }
   for (const s of ['Right', 'Left']) solve(B, rest, s, t[s].wrist, t[s].f, t[s].p, t[s].pole);
 }
