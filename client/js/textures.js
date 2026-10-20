@@ -19,7 +19,8 @@ function make(key, size, draw, repeat = [1, 1]) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(repeat[0], repeat[1]);
   t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
+  t.anisotropy = 8;
+  t.generateMipmaps = true;
   cache.set(k, t);
   return t;
 }
@@ -33,7 +34,7 @@ function noise(g, size, colors, count, r, seed = 1) {
 }
 
 // Mowed-lawn stripes — very HOA compliant.
-export const lawn = (rep = [30, 30]) => make('lawn', 512, (g, s) => {
+export const lawn = (rep = [30, 30]) => make('lawn', 1024, (g, s) => {
   g.fillStyle = '#4a6b2c'; g.fillRect(0, 0, s, s);
   const rand = rng(17);
   for (let i = 0; i < 60; i++) { // large mottling
@@ -43,8 +44,8 @@ export const lawn = (rep = [30, 30]) => make('lawn', 512, (g, s) => {
     grd.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = grd; g.fillRect(x - r, y - r, r * 2, r * 2);
   }
-  for (let i = 0; i < 26000; i++) {
-    const x = rand() * s, y = rand() * s, l = 2 + rand() * 5;
+  for (let i = 0; i < 90000; i++) {
+    const x = rand() * s, y = rand() * s, l = 2 + rand() * 6;
     g.strokeStyle = ['#3d5c24', '#5e8238', '#486a2a', '#6f8f44', '#34501f', '#7a8a46'][i % 6];
     g.lineWidth = 1;
     g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rand() - 0.5) * 2, y - l); g.stroke();
@@ -129,7 +130,7 @@ export const camo = (rep = [1, 1]) => make('camo', 64, (g, s) => {
   }
 }, rep);
 
-export const bark = (rep = [1, 1]) => make('bark', 128, (g, s) => {
+export const bark = (rep = [1, 1]) => make('bark', 256, (g, s) => {
   g.fillStyle = '#4a3a2a'; g.fillRect(0, 0, s, s);
   const rand = rng(5);
   for (let i = 0; i < 70; i++) {
@@ -202,15 +203,16 @@ export const face = (kind = 'clean', skin = '#e0ac69') => make('face' + kind + s
   void skin;
 });
 
-export const dirt = (rep = [20, 20]) => make('dirt', 256, (g, s) => {
+export const dirt = (rep = [20, 20]) => make('dirt', 512, (g, s) => {
   g.fillStyle = '#9a7449'; g.fillRect(0, 0, s, s);
-  noise(g, s, ['#8a6640', '#a98256', '#7b5a37', '#b48d60'], 3000, 3, 11);
+  noise(g, s, ['#8a6640', '#a98256', '#7b5a37', '#b48d60', '#6e5032'], 16000, 2.6, 11);
+  noise(g, s, ['#cfc3a8', '#9a9184', '#6b6257'], 900, 2.2, 13); // pebbles
   noise(g, s, ['#7fa04a', '#8fb35a'], 300, 3, 12);
 }, rep);
 
-export const asphalt = (rep = [1, 1]) => make('asphalt', 512, (g, s) => {
+export const asphalt = (rep = [1, 1]) => make('asphalt', 1024, (g, s) => {
   g.fillStyle = '#45494e'; g.fillRect(0, 0, s, s);
-  noise(g, s, ['#3c4044', '#52565b', '#36393d', '#5e6268', '#4a4d52'], 16000, 1.8, 3);
+  noise(g, s, ['#3c4044', '#52565b', '#36393d', '#5e6268', '#4a4d52', '#6b6f74'], 70000, 1.6, 3);
   const rand = rng(44);
   g.strokeStyle = 'rgba(20,20,22,.55)'; g.lineWidth = 1.5;
   for (let i = 0; i < 9; i++) { // cracks
@@ -227,14 +229,14 @@ export const asphalt = (rep = [1, 1]) => make('asphalt', 512, (g, s) => {
   }
 }, rep);
 
-export const concrete = (rep = [1, 1]) => make('concrete', 128, (g, s) => {
+export const concrete = (rep = [1, 1]) => make('concrete', 512, (g, s) => {
   g.fillStyle = '#d7d3c8'; g.fillRect(0, 0, s, s);
-  noise(g, s, ['#cfcbc0', '#e0ddd4', '#c6c2b6'], 900, 1.5, 5);
+  noise(g, s, ['#cfcbc0', '#e0ddd4', '#c6c2b6', '#b9b5a9', '#d9d5ca'], 14000, 1.5, 5);
   g.strokeStyle = 'rgba(0,0,0,.18)'; g.lineWidth = 2;
   g.strokeRect(0, 0, s, s);
 }, rep);
 
-export const siding = (rep = [1, 1]) => make('siding', 256, (g, s) => {
+export const siding = (rep = [1, 1]) => make('siding', 512, (g, s) => {
   g.fillStyle = '#f4f4f2'; g.fillRect(0, 0, s, s);
   for (let y = 0; y < s; y += 21) {
     const grd = g.createLinearGradient(0, y, 0, y + 21);
@@ -244,7 +246,7 @@ export const siding = (rep = [1, 1]) => make('siding', 256, (g, s) => {
   noise(g, s, ['rgba(0,0,0,.035)', 'rgba(255,255,255,.05)'], 1500, 3, 2);
 }, rep);
 
-export const brick = (rep = [1, 1]) => make('brick', 256, (g, s) => {
+export const brick = (rep = [1, 1]) => make('brick', 512, (g, s) => {
   g.fillStyle = '#cfc6b8'; g.fillRect(0, 0, s, s);
   const rand = rng(8);
   const bh = 16, bw = 42;
@@ -259,7 +261,7 @@ export const brick = (rep = [1, 1]) => make('brick', 256, (g, s) => {
   noise(g, s, ['rgba(0,0,0,.08)', 'rgba(255,255,255,.06)'], 2500, 2, 9);
 }, rep);
 
-export const shingles = (rep = [1, 1]) => make('shingles', 256, (g, s) => {
+export const shingles = (rep = [1, 1]) => make('shingles', 512, (g, s) => {
   g.fillStyle = '#ffffff'; g.fillRect(0, 0, s, s);
   const rand = rng(9);
   for (let row = 0; row < 16; row++) {
@@ -285,7 +287,7 @@ export const wood = (rep = [1, 1]) => make('wood', 128, (g, s) => {
   }
 }, rep);
 
-export const planks = (rep = [1, 1]) => make('planks', 128, (g, s) => {
+export const planks = (rep = [1, 1]) => make('planks', 256, (g, s) => {
   g.fillStyle = '#ffffff'; g.fillRect(0, 0, s, s);
   for (let x = 0; x < s; x += 21) { g.fillStyle = 'rgba(40,20,5,.28)'; g.fillRect(x, 0, 2, s); }
   noise(g, s, ['rgba(60,30,10,.10)', 'rgba(255,255,255,.12)'], 500, 3, 4);

@@ -16,7 +16,7 @@ function mat(color, map = null, extra = {}) {
     if (QUALITY === 'high') {
       const { roughness = 0.88, metalness = 0, ...rest } = extra;
       m = new THREE.MeshStandardMaterial({ color, map, roughness, metalness, ...rest });
-      if (map) { m.bumpMap = map; m.bumpScale = 1.2; }
+      if (map) { m.bumpMap = map; m.bumpScale = 2.2; }
     } else {
       const { roughness, metalness, ...rest } = extra; void roughness; void metalness;
       m = new THREE.MeshLambertMaterial({ color, map, ...rest });
