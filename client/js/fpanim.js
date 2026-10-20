@@ -42,6 +42,11 @@ const SHOTGUN = {
     return keys;
   })(),
 };
+const PISTOL = { // tilt, hand to the grip's base, mag swap (the scanned mag is inside the grip), slide release
+  gun: [[0, [0, 0, 0, 0, 0, 0]], [0.12, [-0.03, 0.05, 0.04, 0.25, 0.25, 0.5]], [0.7, [-0.03, 0.05, 0.04, 0.3, 0.25, 0.55]], [0.82, [-0.01, 0.03, 0.02, -0.15, 0.1, 0.1]], [1, [0, 0, 0, 0, 0, 0]]],
+  k: [[0, [0]], [0.1, [1]], [0.85, [1]], [0.97, [0]]],
+  lh: [[0.1, [0.04, -0.1, -0.06]], [0.25, [0.1, -0.4, -0.05]], [0.45, [0.08, -0.35, -0.04]], [0.6, [0.03, -0.13, -0.07]], [0.72, [0.02, 0.045, -0.02]], [0.82, [0.03, -0.07, -0.05]]],
+};
 const DEER = {
   gun: [[0, [0, 0, 0, 0, 0, 0]], [0.1, [-0.03, 0.035, 0.05, 0.16, 0.28, 0.42]], [0.85, [-0.03, 0.035, 0.05, 0.18, 0.28, 0.44]], [1, [0, 0, 0, 0, 0, 0]]],
   k: [[0, [0]], [0.1, [1]], [0.86, [1]], [0.96, [0]]],
@@ -57,10 +62,11 @@ let dropped = null; // falling empty magazine (viewmodel scene)
  */
 export function reloadPose(kind, gun, u, scene, viewmodel) {
   const ud = gun.userData;
-  const A = kind === 'shotgun' ? SHOTGUN : kind === 'deer' ? DEER : RIFLE;
+  const A = kind === 'shotgun' ? SHOTGUN : kind === 'deer' ? DEER : kind === 'pistol' ? PISTOL : RIFLE;
+  const magKind = ['rifle', 'ak', 'smg', 'pistol'].includes(kind);
   const g = track(A.gun, u), k = track(A.k, u)[0], lh = V(track(A.lh, u));
   const ov = { Left: { pos: lh, k, f: new THREE.Vector3(0.2, -1, 0.3), p: new THREE.Vector3(-1, 0.1, 0) } };
-  if (kind === 'rifle' && ud.mag) {
+  if (magKind && ud.mag) {
     const seat = ud.magSeat;
     if (u < 0.17 || u >= 0.64) { ud.mag.visible = true; ud.mag.position.copy(seat); ud.mag.rotation.set(0, 0, 0); }
     else if (u < 0.25 || u >= 0.42) { ud.mag.visible = true; ud.mag.position.copy(lh).sub(V(MAG_GRAB)); ud.mag.rotation.set((u < 0.25 ? 0.1 : -0.15) * k, 0, 0); }
@@ -79,7 +85,7 @@ export function reloadPose(kind, gun, u, scene, viewmodel) {
   }
   if (kind === 'deer' && ud.bolt) { const b = track(DEER.bolt, u)[0]; for (const x of ud.bolt) x.o.position.x = x.x0 - 0.075 * b; }
   // a round / shell carried in the hand
-  if (kind !== 'rifle') {
+  if (!magKind) {
     if (!ud.carry) {
       const shell = kind === 'shotgun'
         ? new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.045, 10), new THREE.MeshStandardMaterial({ color: '#9b1c1c', roughness: 0.55 }))

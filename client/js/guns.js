@@ -135,9 +135,85 @@ function buildShotgun() {
   return g;
 }
 
+function curvedMag(g, M, mat, seat, len, curve, width = 0.022) {
+  // magazine as its own group with origin at the top of the magwell (reloads pull it out)
+  const pts = [];
+  for (let i = 0; i <= 10; i++) { const t = i / 10; pts.push([-0.03 + t * t * curve + t * 0.01, -t * len]); }
+  for (let i = 10; i >= 0; i--) { const t = i / 10; pts.push([0.03 + t * t * curve + t * 0.01, -t * len + (i === 10 ? 0.006 : 0)]); }
+  const magG = new THREE.Group(); magG.position.set(0, seat[1], seat[0]); g.add(magG);
+  magG.add(prof(pts, width, mat, 0.003));
+  return magG;
+}
+function buildAK() {
+  const M = materials(), g = new THREE.Group();
+  const steel = M.parker;
+  // stamped receiver + dust cover
+  g.add(prof([[-0.11, -0.025], [0.17, -0.025], [0.17, 0.035], [-0.11, 0.03]], 0.032, steel, 0.003));
+  g.add(prof([[-0.1, 0.03], [0.15, 0.035], [0.15, 0.05], [-0.05, 0.05], [-0.1, 0.042]], 0.03, steel, 0.006));
+  g.add(bx(0.004, 0.012, 0.09, M.steel, -0.017, 0.02, 0.05));  // charging handle slot
+  g.add(bx(0.012, 0.01, 0.03, M.steel, -0.022, 0.02, 0.1));
+  // wooden lower + upper handguard, gas tube, barrel, front sight, muzzle brake
+  g.add(prof([[0.17, -0.02], [0.4, -0.02], [0.4, 0.028], [0.17, 0.03]], 0.044, M.wood, 0.008));
+  g.add(cylZ(0.012, 0.22, M.wood, 0.19, 0.048, 14));
+  g.add(cylZ(0.0085, 0.2, M.steel, 0.4, 0.012, 14));
+  g.add(cylZ(0.006, 0.12, M.steel, 0.41, 0.048, 10));
+  g.add(bx(0.024, 0.03, 0.02, steel, 0, 0.042, 0.52)); g.add(bx(0.004, 0.035, 0.004, M.steel, 0, 0.065, 0.525));
+  g.add(cylZ(0.012, 0.06, M.steel, 0.6, 0.012, 12));
+  g.add(bx(0.03, 0.012, 0.05, steel, 0, 0.057, 0.12));        // rear sight block
+  // pistol grip, trigger guard
+  g.add(prof([[-0.03, -0.004], [0.002, -0.006], [-0.006, -0.03], [-0.035, -0.105], [-0.058, -0.105], [-0.058, -0.09], [-0.045, -0.03], [-0.045, -0.006]], 0.03, M.wood, 0.007));
+  g.add(prof([[-0.012, -0.05], [0.055, -0.05], [0.055, -0.03], [0.05, -0.03], [0.05, -0.045], [-0.012, -0.045]], 0.016, steel, 0.0015));
+  // wooden stock
+  g.add(prof([[-0.11, 0.03], [-0.11, -0.03], [-0.42, -0.11], [-0.44, -0.11], [-0.44, 0.02], [-0.3, 0.02]], 0.04, M.wood, 0.007));
+  g.add(prof([[-0.452, -0.115], [-0.438, -0.115], [-0.438, 0.024], [-0.452, 0.024]], 0.044, steel, 0.003));
+  const magG = curvedMag(g, M, steel, [0.075, -0.025], 0.2, 0.09, 0.024);
+  g.userData = { grip: new THREE.Vector3(0, -0.04, -0.035), fore: new THREE.Vector3(0, 0.0, 0.3), muzzle: new THREE.Vector3(0, 0.012, 0.66), sight: new THREE.Vector3(0, 0.07, 0.0), eject: new THREE.Vector3(-0.02, 0.03, 0.08), shell: 'brass', mag: magG, magSeat: magG.position.clone() };
+  return g;
+}
+function buildSMG() {
+  const M = materials(), g = new THREE.Group();
+  // tubular receiver, cocking tube, polymer lower, slim handguard
+  g.add(cylZ(0.022, 0.28, M.anod, -0.08, 0.03, 18));
+  g.add(cylZ(0.009, 0.2, M.anod, 0.05, 0.062, 10));
+  g.add(prof([[-0.06, 0.012], [0.12, 0.012], [0.12, -0.022], [0.03, -0.028], [-0.06, -0.028]], 0.03, M.poly, 0.004));
+  g.add(cylZ(0.024, 0.13, M.poly, 0.2, 0.025, 16));
+  g.add(cylZ(0.008, 0.08, M.steel, 0.33, 0.03, 12));
+  const hood = new THREE.Mesh(new THREE.TorusGeometry(0.014, 0.003, 6, 16), M.anod); hood.position.set(0, 0.07, 0.3); g.add(hood);
+  g.add(bx(0.03, 0.02, 0.02, M.anod, 0, 0.065, -0.05));                    // drum rear sight
+  // grip + guard
+  g.add(prof([[-0.03, -0.01], [0.004, -0.012], [-0.004, -0.032], [-0.03, -0.11], [-0.054, -0.11], [-0.058, -0.095], [-0.044, -0.03], [-0.044, -0.01]], 0.03, M.poly, 0.007));
+  g.add(prof([[-0.012, -0.05], [0.05, -0.05], [0.05, -0.03], [0.045, -0.03], [0.045, -0.045], [-0.012, -0.045]], 0.016, M.poly, 0.0015));
+  // retractable stock: two rods and a butt plate
+  for (const sx of [-1, 1]) { const r = cylZ(0.004, 0.13, M.steel, -0.21, 0.03, 6); r.position.x = sx * 0.016; g.add(r); }
+  g.add(prof([[-0.23, -0.05], [-0.21, -0.05], [-0.21, 0.06], [-0.23, 0.06]], 0.05, M.poly, 0.004));
+  const magG = curvedMag(g, M, M.parker, [0.06, -0.028], 0.16, 0.035, 0.02);
+  g.userData = { grip: new THREE.Vector3(0, -0.045, -0.035), fore: new THREE.Vector3(0, 0.005, 0.22), muzzle: new THREE.Vector3(0, 0.03, 0.42), sight: new THREE.Vector3(0, 0.075, -0.02), eject: new THREE.Vector3(-0.022, 0.035, 0.05), shell: 'brass', mag: magG, magSeat: magG.position.clone() };
+  return g;
+}
+
+let pistol = null;
+function loadPistol() {
+  return new Promise((res) => new GLTFLoader().load(BASE + 'pistol/pistol.gltf', (gl) => {
+    const root = new THREE.Group(), s = gl.scene;
+    // the file holds two copies (assembled + spare parts): keep the assembled "_a" pistol
+    const keep = /pistol_a|slide_a|hammer_a|trigger_a/;
+    const drop = []; s.traverse((o) => { if (o.isMesh && !keep.test(o.name) && !keep.test(o.parent ? o.parent.name : '')) drop.push(o); });
+    for (const o of drop) o.visible = false;
+    s.rotation.y = -Math.PI / 2; s.position.set(0, -0.025, -0.05);
+    s.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    root.add(s);
+    let slide = null; s.traverse((o) => { if (/slide_a/.test(o.name) && !slide) slide = o; });
+    root.userData = { grip: new THREE.Vector3(0, -0.055, -0.075), fore: new THREE.Vector3(0, -0.06, -0.05), reach: 0.1, oneHandish: true, muzzle: new THREE.Vector3(0, 0.03, 0.13), sight: new THREE.Vector3(0, 0.055, -0.02), eject: new THREE.Vector3(-0.012, 0.04, 0.02), shell: 'brass', slide: slide ? { o: slide, x0: slide.position.x } : null };
+    pistol = root; res(true);
+  }, undefined, () => res(false)));
+}
+
 let deer = null;
 /** Loads the scanned rifle. Resolves true when ready (procedural guns need no loading). */
 export function loadGuns() {
+  return Promise.all([loadDeer(), loadPistol()]).then((r) => r.every(Boolean));
+}
+function loadDeer() {
   return new Promise((res) => new GLTFLoader().load(BASE + 'deer/rifle.gltf', (gl) => {
     const root = new THREE.Group();
     const s = gl.scene;
@@ -158,5 +234,13 @@ export function realGun(kind) {
     c.traverse((o) => { if (/bolt/.test(o.name)) c.userData.bolt.push({ o, x0: o.position.x }); });
     return c;
   }
+  if (kind === 'pistol') {
+    if (!pistol) return null;
+    const c = pistol.clone(); c.userData = { ...pistol.userData };
+    if (pistol.userData.slide) { let sl = null; c.traverse((o) => { if (o.name === pistol.userData.slide.o.name && !sl) sl = o; }); c.userData.slide = sl ? { o: sl, x0: sl.position.x } : null; }
+    return c;
+  }
+  if (kind === 'ak') return buildAK();
+  if (kind === 'smg') return buildSMG();
   return kind === 'shotgun' ? buildShotgun() : buildAR();
 }

@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import * as TX from './textures.js';
 import { buildGunModel } from './characters.js';
+import { WEAPON_ORDER } from '../shared/constants.js';
 import { loadMixamo, skeletonTemplate, mixamoClips } from './mixamo.js';
 import { buildCaricature, buildHumanGear, pickArchetype, ARCHETYPES } from './caricatures.js';
 import { loadHuman, attachHuman } from './humans.js';
@@ -249,10 +250,10 @@ export function buildRiggedCharacter({ id, color, outfit }) {
 
   // gun: carried at the chest, aimed with the body
   const gun = new THREE.Group();
-  const rifle = buildGunModel('rifle'); gun.add(rifle);
-  const shotgun = buildGunModel('shotgun'); shotgun.visible = false; gun.add(shotgun);
-  const deer = buildGunModel('deer'); deer.visible = false; gun.add(deer);
-  for (const g of [rifle, shotgun, deer]) g.traverse((c) => { if (c.isMesh) c.castShadow = true; });
+  const guns = {};
+  for (const w of WEAPON_ORDER) { guns[w] = buildGunModel(w); guns[w].visible = w === 'rifle'; gun.add(guns[w]); }
+  const { rifle, shotgun, deer } = guns;
+  for (const g of Object.values(guns)) g.traverse((c) => { if (c.isMesh) c.castShadow = true; });
 
   // animation: idle / walk / run blended by speed; arms overridden into a rifle hold
   let mixerRoot = model;
@@ -317,7 +318,7 @@ export function buildRiggedCharacter({ id, color, outfit }) {
     const cp = Math.cos(pitch), sp = Math.sin(pitch), ox = 0.07, oy = -0.08, oz = 0.34;
     gun.position.set(shoulder.x + ox, shoulder.y + oy * cp + oz * sp, shoulder.z + oz * cp - oy * sp);
     gun.rotation.set(-pitch, 0, 0);
-    const active = [rifle, shotgun, deer].find((g) => g.visible) || rifle;
+    const active = Object.values(guns).find((g) => g.visible) || rifle;
     holdGun(allBones, handRest, active);
     // head looks down the sights instead of at the floor
     holder.getWorldQuaternion(hq);
@@ -341,7 +342,7 @@ export function buildRiggedCharacter({ id, color, outfit }) {
     ? { mixamo: true, mixer, actions, bones, model, placeGun, dead: false, deathAct: null, jumping: 0, w: { idle: 1, walk: 0, run: 0, back: 0, left: 0, right: 0 } }
     : { mixer, actions, bones, pose, model };
   body.userData = {
-    legs: [new THREE.Object3D(), new THREE.Object3D()], head: bones.Head, hips: holder, gun, rifle, shotgun, deer,
+    legs: [new THREE.Object3D(), new THREE.Object3D()], head: bones.Head, hips: holder, gun, rifle, shotgun, deer, guns,
     armR: new THREE.Object3D(), armL: new THREE.Object3D(), rig, mocap: rifleMocap, archetype, human: !!meshesForFlash, pendingHuman,
   };
   // own material instances per player so hit flashes only light up the one who got hit

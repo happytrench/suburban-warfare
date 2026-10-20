@@ -814,7 +814,7 @@ export class GameServer {
     const list = [];
     for (const q of room.players.values()) {
       if (!q.connected) continue;
-      const flags = (q.alive ? 1 : 0) | (q.sprint ? 2 : 0) | (q.weapon === 'shotgun' ? 4 : 0) | (q.weapon === 'deer' ? 32 : 0)
+      const flags = (q.alive ? 1 : 0) | (q.sprint ? 2 : 0) | (q.weapon === 'shotgun' ? 4 : 0) | (q.weapon === 'deer' ? 32 : 0) | (Math.max(0, WEAPON_ORDER.indexOf(q.weapon)) << 6)
         | (q.invulnUntil > now ? 8 : 0) | (q.reloadUntil > now ? 16 : 0);
       list.push([q.id, r2(q.pos.x), r2(q.pos.y), r2(q.pos.z), r2(q.yaw), r2(q.pitch), flags]);
     }

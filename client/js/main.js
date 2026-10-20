@@ -344,9 +344,7 @@ document.addEventListener('keydown', (e) => {
   if (!locked()) return;
   keys.add(e.code);
   if (e.code === 'KeyR') reload();
-  if (e.code === 'Digit1') switchWeapon('rifle');
-  if (e.code === 'Digit2') switchWeapon('shotgun');
-  if (e.code === 'Digit3') switchWeapon('deer');
+  const dn = /^Digit([1-9])$/.exec(e.code); if (dn && WEAPON_ORDER[dn[1] - 1]) switchWeapon(WEAPON_ORDER[dn[1] - 1]);
   if (e.code === 'KeyQ') switchWeapon(WEAPON_ORDER[(WEAPON_ORDER.indexOf(me.weapon) + 1) % WEAPON_ORDER.length]);
   if (e.code === 'KeyT' || e.code === 'Enter') { e.preventDefault(); openChat(); }
   if (e.code === 'Space') e.preventDefault();
@@ -446,17 +444,18 @@ function tryFire(now) {
   // learnable recoil pattern: the rifle climbs straight up for the first few rounds, then drifts
   // side to side; most of the climb stays (pull down to control it), a little snaps back
   const burst = now - me.lastShot < 260 ? (me.burst || 0) + 1 : 0; me.burst = burst;
-  const R = { rifle: [0.0046, 0.00016, 0.0026], shotgun: [0.032, 0, 0.007], deer: [0.05, 0, 0.006] }[me.weapon];
+  const R = { rifle: [0.0046, 0.00016, 0.0026], ak: [0.0068, 0.00022, 0.0036], smg: [0.0032, 0.0001, 0.003], pistol: [0.014, 0, 0.004], shotgun: [0.032, 0, 0.007], deer: [0.05, 0, 0.006] }[me.weapon];
   const m = aimed ? 0.62 : 1;
   const up = (R[0] + Math.min(burst, 12) * R[1]) * m * (0.9 + Math.random() * 0.2);
   const side = (Math.sin(burst * 0.85 + 1.3) * (burst > 3 ? 1 : 0.25) + (Math.random() - 0.5) * 0.5) * R[2] * m;
   me.pitch = clamp(me.pitch + up * 0.75, -1.5, 1.5);
   me.yaw -= side * 0.75;
   me.kickPitch += up * 0.8; me.kickYaw -= side * 0.3;
-  me.recoil = Math.min(me.recoil + (me.weapon === 'rifle' ? 0.35 : 1.2), 1.6);
+  const autoW = WEAPONS[me.weapon].auto;
+  me.recoil = Math.min(me.recoil + (autoW ? 0.35 : 1.2), 1.6);
   vmKick(me.weapon, aimed);
-  me.shake = Math.min(1, me.shake + (me.weapon === 'rifle' ? 0.12 : 0.5));
-  me.bloom = Math.min(1, me.bloom + (me.weapon === 'rifle' ? 0.18 : 0.6));
+  me.shake = Math.min(1, me.shake + (autoW ? 0.12 : me.weapon === 'pistol' ? 0.2 : 0.5));
+  me.bloom = Math.min(1, me.bloom + (autoW ? 0.18 : me.weapon === 'pistol' ? 0.35 : 0.6));
   me.lastShot = now;
   muzzleFlash.visible = true; muzzleFlash.userData.t = 0.05;
   flashLight.position.copy(camera.position); flashLight.intensity = 6;
@@ -519,9 +518,9 @@ function updateRemotes(dt) {
     r.alive = alive;
     const ud = r.obj.userData;
     const rig = ud.rig;
-    ud.rifle.visible = !(s.flags & 4) && !(s.flags & 32);
-    ud.shotgun.visible = !!(s.flags & 4);
-    ud.deer.visible = !!(s.flags & 32);
+    const wi = (s.flags >> 6) & 7, wn = WEAPON_ORDER[wi] || 'rifle';
+    if (ud.guns) { for (const [k, g] of Object.entries(ud.guns)) g.visible = k === wn; }
+    else { ud.rifle.visible = !(s.flags & 4) && !(s.flags & 32); ud.shotgun.visible = !!(s.flags & 4); ud.deer.visible = !!(s.flags & 32); }
     ud.gun.rotation.x = -s.pitch * 0.8;
     ud.armR.rotation.x = -1.15 - s.pitch * 0.8;
     ud.armL.rotation.x = -1.25 - s.pitch * 0.8;
@@ -647,15 +646,15 @@ function updateCamera(dt) {
 
 const vmS = { sprintT: 0, airT: 0, wasGround: true, reloadingGun: null, z: { x: 0, v: 0 }, p: { x: 0, v: 0 }, r: { x: 0, v: 0 }, sx: 0, sy: 0, ly: null, lp: 0, cycle: 0, cycleLen: 1, ejected: true };
 function vmKick(w, aimed) {
-  const P = { rifle: [0.9, 1.4, 0.9], shotgun: [3.2, 5.5, 2.2], deer: [3.6, 6.5, 1.6] }[w];
+  const P = { rifle: [0.9, 1.4, 0.9], ak: [1.3, 2.0, 1.3], smg: [0.7, 1.0, 1.0], pistol: [1.6, 4.2, 1.2], shotgun: [3.2, 5.5, 2.2], deer: [3.6, 6.5, 1.6] }[w];
   const m = aimed ? 0.5 : 1;
   vmS.z.v += P[0] * m; vmS.p.v += P[1] * m * (0.85 + Math.random() * 0.3); vmS.r.v += (Math.random() - 0.5) * P[2] * m;
   const g = vmGuns[w];
-  if (w === 'rifle') ejectCase(g);
-  else { vmS.cycle = vmS.cycleLen = w === 'shotgun' ? 0.55 : 0.8; vmS.ejected = false; }
+  if (w === 'shotgun' || w === 'deer') { vmS.cycle = vmS.cycleLen = w === 'shotgun' ? 0.55 : 0.8; vmS.ejected = false; }
+  else { ejectCase(g); if (w === 'pistol') vmS.slideT = 0.09; }
   // smoke drifting off the muzzle
   viewmodel.updateMatrixWorld(true);
-  if (g.userData.muzzle) spawnSmoke(vmScene, g.localToWorld(g.userData.muzzle.clone()), w === 'rifle' ? 1 : 3);
+  if (g.userData.muzzle) spawnSmoke(vmScene, g.localToWorld(g.userData.muzzle.clone()), WEAPONS[w].auto ? 1 : 3);
 }
 function ejectCase(g) {
   if (!g.userData.eject) return;
@@ -733,6 +732,7 @@ function updateViewmodel(dt, now) {
     if (gud.bolt) for (const b of gud.bolt) b.o.position.x = b.x0 - 0.075 * slide;
     if (!vmS.ejected && ph > 0.55) { vmS.ejected = true; ejectCase(gun); }
   }
+  if (gud.slide) { vmS.slideT = Math.max(0, (vmS.slideT || 0) - dt); gud.slide.o.position.x = gud.slide.x0 - Math.sin(Math.min(1, vmS.slideT / 0.09) * Math.PI) * 0.03; }
   const sightY = (gud.sight ? gud.sight.y * 0.55 : 0.11);
   void reloadDip;
   viewmodel.position.set(
@@ -746,7 +746,7 @@ function updateViewmodel(dt, now) {
   muzzleFlash.position.copy(gud.muzzle || muzzleOffset(me.weapon)).multiply(new THREE.Vector3(-1, 1, -1));
   if (muzzleFlash.visible) {
     muzzleFlash.userData.t -= dt;
-    muzzleFlash.scale.setScalar((0.7 + Math.random() * 0.6) * (me.weapon === 'rifle' ? 0.8 : 1.3));
+    muzzleFlash.scale.setScalar((0.7 + Math.random() * 0.6) * ({ smg: 0.6, pistol: 0.55, rifle: 0.8, ak: 0.95 }[me.weapon] || 1.3));
     muzzleFlash.rotation.z = Math.random() * Math.PI;
     if (muzzleFlash.userData.t <= 0) muzzleFlash.visible = false;
   }
@@ -760,6 +760,10 @@ function fmtTime(ms) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+{ // weapon slot strip from the shared weapon list
+  const ws = document.getElementById('weapon-slots');
+  if (ws) ws.innerHTML = WEAPON_ORDER.map((w, i) => `<span data-w="${w}">${i + 1} ${WEAPONS[w].short || w.toUpperCase()}</span>`).join('');
+}
 function updateHudWeapon() {
   const w = WEAPONS[me.weapon];
   $('weapon-name').textContent = w.name;
@@ -1133,7 +1137,7 @@ net.on('kill', (m) => {
   const mineK = m.k === S.myId, mineV = m.v === S.myId;
   const kc = playerColor(m.k, playerInfo(m.k)?.team, mode());
   const vc = playerColor(m.v, playerInfo(m.v)?.team, mode());
-  feed(`<b style="color:${kc}">${esc(m.kn)}</b> <span class="verb">${esc(m.verb)}</span> <b style="color:${vc}">${esc(m.vn)}</b> ${m.hd ? '🎯' : ''} <small>[${{ shotgun: 'ENFORCER', deer: 'DEER RIFLE' }[m.w] || 'BLASTER'}]</small>`, mineK || mineV);
+  feed(`<b style="color:${kc}">${esc(m.kn)}</b> <span class="verb">${esc(m.verb)}</span> <b style="color:${vc}">${esc(m.vn)}</b> ${m.hd ? '🎯' : ''} <small>[${(WEAPONS[m.w] && WEAPONS[m.w].short) || 'BLASTER'}]</small>`, mineK || mineV);
   if (mineV) {
     die(m.k);
     $('dead-by').innerHTML = `You were ${esc(m.pverb || m.verb)} by <b>${esc(m.kn)}</b>${m.hd ? ' (headshot)' : ''}.`;

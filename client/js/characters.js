@@ -247,6 +247,6 @@ export function buildGunModel(kind, quality = 'high') {
 }
 
 export function muzzleOffset(kind) {
-  if (kind === 'deer') return new THREE.Vector3(0, 0.05, 0.92);
-  return kind === 'shotgun' ? new THREE.Vector3(0, 0.022, 0.73) : new THREE.Vector3(0, 0.033, 0.69);
+  const M = { deer: [0, 0.05, 0.92], shotgun: [0, 0.022, 0.73], ak: [0, 0.012, 0.66], smg: [0, 0.03, 0.42], pistol: [0, 0.03, 0.13] }[kind] || [0, 0.033, 0.69];
+  return new THREE.Vector3(...M);
 }

@@ -76,7 +76,23 @@ export const WEAPONS = {
     scoped: true,
   },
 };
-export const WEAPON_ORDER = ['rifle', 'shotgun', 'deer'];
+// added arsenal
+Object.assign(WEAPONS, {
+  ak: {
+    id: 'ak', name: 'Bush Hog AK', short: 'BUSH HOG', damage: 30, headMult: 1.6, cooldownMs: 125, mag: 30, reloadMs: 2000,
+    spread: 0.016, pellets: 1, range: 150, falloffStart: 70, falloffMin: 0.75, auto: true,
+  },
+  smg: {
+    id: 'smg', name: 'Weed Whacker MP', short: 'WEED WHACKER', damage: 16, headMult: 1.5, cooldownMs: 70, mag: 32, reloadMs: 1600,
+    spread: 0.022, pellets: 1, range: 80, falloffStart: 22, falloffMin: 0.55, auto: true,
+  },
+  pistol: {
+    id: 'pistol', name: 'Neighborhood Watch 9mm', short: 'WATCH 9MM', damage: 28, headMult: 1.8, cooldownMs: 160, mag: 15, reloadMs: 1300,
+    spread: 0.012, pellets: 1, range: 90, falloffStart: 30, falloffMin: 0.6, auto: false,
+  },
+});
+WEAPONS.rifle.short = 'BLASTER'; WEAPONS.shotgun.short = 'ENFORCER'; WEAPONS.deer.short = 'DEER RIFLE';
+export const WEAPON_ORDER = ['rifle', 'ak', 'smg', 'shotgun', 'deer', 'pistol'];
 export const ADS_SPREAD_MULT = 0.55;   // aiming down sights tightens spread
 export const fullAmmo = () => Object.fromEntries(WEAPON_ORDER.map((w) => [w, WEAPONS[w].mag]));
 

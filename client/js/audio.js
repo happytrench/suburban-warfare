@@ -66,6 +66,18 @@ export class Sfx {
       this.noise(0.5, 1800, 0.6, 1.0 * fall, 'lowpass', pan);
       this.tone(70, 0.4, 0.5 * fall, 'sine', -40);
       setTimeout(() => this.noise(0.6, 600, 0.5, 0.25 * fall, 'lowpass', pan), 120); // echo across the fields
+    } else if (weapon === 'ak') {
+      this.noise(0.16, 1700, 0.9, 0.6 * fall, 'bandpass', pan);
+      this.noise(0.06, 5000, 0.7, 0.2 * fall, 'highpass', pan);
+      this.tone(80, 0.14, 0.45 * fall, 'sine', -40);
+    } else if (weapon === 'smg') {
+      this.noise(0.08, 2800, 0.9, 0.35 * fall, 'bandpass', pan);
+      this.noise(0.04, 8000, 0.7, 0.12 * fall, 'highpass', pan);
+      this.tone(120, 0.06, 0.25 * fall, 'sine', -50);
+    } else if (weapon === 'pistol') {
+      this.noise(0.1, 3200, 0.8, 0.45 * fall, 'bandpass', pan);
+      this.noise(0.05, 7500, 0.7, 0.2 * fall, 'highpass', pan);
+      this.tone(140, 0.08, 0.3 * fall, 'sine', -60);
     } else if (weapon === 'shotgun') {
       this.noise(0.35, 900, 0.7, 0.9 * fall, 'lowpass', pan);
       this.tone(90, 0.25, 0.4 * fall, 'sine', -50);
