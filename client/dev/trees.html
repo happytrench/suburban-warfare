@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;overflow:hidden}</style>
+<script type="importmap">{ "imports": { "three": "../vendor/three.module.min.js", "three/addons/": "../vendor/jsm/" } }</script></head><body>
+<script type="module">
+import * as THREE from 'three';
+import { buildForest, treeVariants } from '../js/trees.js';
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.toneMapping = THREE.ACESFilmicToneMapping; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#a8c8e8');
+scene.add(new THREE.HemisphereLight('#dff1ff', '#556b2f', 1.5)); const sun = new THREE.DirectionalLight('#ffe2b0', 2.5); sun.position.set(20, 30, 20); sun.castShadow = true; scene.add(sun);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: '#5d7a35' })); ground.rotation.x = -Math.PI / 2; scene.add(ground);
+const sp = ['oak', 'ash', 'aspen', 'pine'];
+const items = sp.map((s, i) => ({ x: (i - 1.5) * 9, z: 0, r: 3, species: s }));
+scene.add(buildForest(items));
+const info = sp.map((s) => treeVariants(s).map((v) => (v.branches.geometry.index.count + v.leaves.geometry.index.count) / 3 | 0));
+console.log(JSON.stringify(info));
+const cam = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 500); cam.position.set(0, 6, 30); cam.lookAt(0, 6, 0);
+await new Promise((res) => setTimeout(res, 2000));
+r.render(scene, cam); window.__done = true;
+</script></body></html>

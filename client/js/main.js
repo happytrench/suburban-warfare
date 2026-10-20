@@ -9,6 +9,7 @@ import { stepPlayer, raycastMap, rayPlayer } from '../shared/physics.js';
 import { buildWorld, buildSky, setQuality } from './world.js';
 import { buildCharacter, nameTag, playerColor, buildGunModel, muzzleOffset } from './characters.js';
 import { loadGuns } from './guns.js';
+import { loadTreeTextures } from './trees.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Net } from './net.js';
 import { Sfx } from './audio.js';
@@ -1243,6 +1244,7 @@ function frame(now) {
   }
 
   renderer.clear();
+  if (worldGroup && worldGroup.userData.update) worldGroup.userData.update(performance.now() / 1000);
   renderer.render(scene, camera);
   if (viewmodel.visible) {
     renderer.clearDepth();
@@ -1278,7 +1280,7 @@ async function boot() {
     if (document.fonts && document.fonts.ready) await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]);
     applyRenderSettings();
     resize();
-    await Promise.race([loadGuns(), new Promise((r) => setTimeout(r, 6000))]);
+    await Promise.race([Promise.all([loadGuns(), loadTreeTextures()]), new Promise((r) => setTimeout(r, 6000))]);
     // image-based lighting so metal, skin and cloth pick up soft reflections
     const env = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
     vmScene.environment = env; scene.environment = env; scene.environmentIntensity = 0.35;

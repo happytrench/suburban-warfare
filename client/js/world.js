@@ -2,6 +2,7 @@
 // Static geometry is merged per material, keeping draw calls low on laptops.
 import * as THREE from 'three';
 import * as TX from './textures.js';
+import { buildForest } from './trees.js';
 
 // 'high' = physically based materials with bump detail; 'low' = cheap Lambert shading.
 let QUALITY = 'high';
@@ -1099,7 +1100,7 @@ function buildGround(B, map, decor) {
   }
 }
 
-function buildBackdrop(B, map) {
+function buildBackdrop(B, map, forest = null) {
   if (map.id === 'lake') { // far shore of the lake: a low wooded ridge
     for (let i = 0; i < 40; i++) {
       const a = -Math.PI * 0.6 + (i / 40) * Math.PI * 1.2;
@@ -1116,6 +1117,7 @@ function buildBackdrop(B, map) {
     const r = R + (i % 3) * 6;
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     const h = 7 + ((i * 13) % 5);
+    if (forest) { forest.push({ x, z, r: 2.6 + (i % 3) * 0.4, species: map.faction === 'country' && i % 2 ? 'pine' : (i % 3 ? 'oak' : 'ash'), lite: true }); continue; }
     B.cyl(0.3, 0.4, 2, x, 0, z, trunkM, 5);
     B.cyl(0, 3 + (i % 2), h, x, 1.5, z, treeM, 6);
   }
@@ -1139,10 +1141,24 @@ function buildBackdrop(B, map) {
 export function buildWorld(map) {
   const B = new Builder();
   buildGround(B, map, map.decor);
-  for (const b of map.boxes) buildKind(B, b);
-  for (const d of map.decor) buildDecor(B, d);
-  buildBackdrop(B, map);
-  return B.build();
+  // high quality: real grown trees replace the canopy blobs and their trunk posts
+  const forest = [];
+  const real = QUALITY === 'high';
+  const species = (x, z, i) => {
+    const h = Math.abs(Math.round(x * 7 + z * 13)) + i;
+    if (map.faction === 'country' && h % 3 === 0) return 'pine';
+    return h % 2 ? 'oak' : 'ash';
+  };
+  if (real) map.decor.forEach((d, i) => { if (d.kind === 'canopy') forest.push({ x: d.x, z: d.z, r: d.r || 3, species: species(d.x, d.z, i) }); });
+  const treeAt = new Set(forest.map((f) => `${f.x}|${f.z}`));
+  for (const b of map.boxes) { if (real && b.kind === 'trunk' && !b.kind2 && treeAt.has(`${b.x}|${b.z}`)) continue; buildKind(B, b); }
+  for (const d of map.decor) { if (real && d.kind === 'canopy') continue; buildDecor(B, d); }
+  buildBackdrop(B, map, real ? forest : null);
+  const g = B.build();
+  if (forest.length) {
+    try { const f = buildForest(forest); g.add(f); g.userData.update = f.userData.update; } catch (e) { console.warn('trees', e); }
+  }
+  return g;
 }
 
 export function buildSky(theme) {

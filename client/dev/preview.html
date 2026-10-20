@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>Art preview</title>
   <style>html,body{margin:0;overflow:hidden;background:#000}</style>
-  <script type="importmap">{ "imports": { "three": "../vendor/three.module.min.js" } }</script>
+  <script type="importmap">{ "imports": { "three": "../vendor/three.module.min.js", "three/addons/": "../vendor/jsm/" } }</script>
 </head>
 <body>
 <script type="module">
@@ -12,6 +12,7 @@
   import * as THREE from 'three';
   import { getMap } from '../shared/map.js';
   import { buildWorld, buildSky, setQuality } from '../js/world.js';
+  import { loadTreeTextures } from '../js/trees.js';
   import { buildCharacter, nameTag } from '../js/characters.js';
 
   const q = new URLSearchParams(location.search);
@@ -37,6 +38,7 @@
   sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03;
   Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, far: 200 });
   scene.add(sun);
+  await loadTreeTextures();
   scene.add(buildWorld(map));
 
   const chars = q.get('lineup') ? [
