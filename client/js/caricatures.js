@@ -64,6 +64,21 @@ let _plaid = null;
 const plaid = () => { if (!_plaid) { _plaid = TX.buffalo().clone(); _plaid.wrapS = _plaid.wrapT = THREE.RepeatWrapping; _plaid.repeat.set(3, 3); _plaid.needsUpdate = true; } return _plaid; };
 const SKIN = (c) => R('skin', c, { rep: 2.5 });
 const HAIR = (c) => R('hair', c, { rep: 1 });
+// Materials for the generated humans (tools/humans.py): their UVs are MakeHuman's body atlas,
+// where one UV unit spans roughly the whole body, so fabrics tile much more.
+const ATLAS_REP = { denim: 16, jersey: 22, linen: 16, knit: 14, leather: 10, wleather: 10, camo: 6, flannel: 9 };
+export function clothMaterial(kind, color) {
+  if (kind === 'flannel') {
+    const t = TX.buffalo().clone(); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(ATLAS_REP.flannel, ATLAS_REP.flannel); t.needsUpdate = true;
+    const m = R('jersey', '#ffffff', { rep: ATLAS_REP.jersey, map: t, tag: 'atlasflannel' });
+    return m;
+  }
+  return R(kind, color, { rep: ATLAS_REP[kind] || 14, tag: 'atlas' });
+}
+export function skinDetail(mat) {
+  mat.normalMap = T('skin_nor_gl', 40, false); mat.normalScale.set(0.35, 0.35);
+  mat.roughnessMap = T('skin_rough', 40, false);
+}
 /** Resolves once every character texture has loaded (or failed). */
 export const charTexturesReady = () => Promise.all(pending);
 // plain materials for small hard bits (lenses, buckles, plastic)
@@ -360,4 +375,69 @@ function arms(b, u, shoulderM, upperM, foreM, handM, { up = 0.055, fore = 0.045 
 const BUILDERS = { bubba: buildBubba, cletus: buildCletus, darlene: buildDarlene, hank: buildHank, jimbo: buildJimbo, chad: buildChad, karen: buildKaren, golfdad: buildGolfDad, brad: buildBrad, todd: buildTodd };
 export function buildCaricature(bones, unit, archetype, teamColor) {
   (BUILDERS[archetype] || buildChad)(bones, unit, teamColor);
+}
+
+// ---------------------------------------------------------------- gear for the generated humans
+// Hats, glasses and props placed from the head measurements tools/humans.py exports (cm, mocap rest pose).
+export function buildHumanGear(b, u, arch, team, mt) {
+  const hd = mt.head, cm = (v) => v / 100;
+  const r = cm(mt.earX) * 1.08;                                   // head half-width
+  const browY = cm(mt.brow - hd[1]), faceZ = cm(mt.faceZ - hd[2]), topY = cm(mt.headTop[1] - hd[1]);
+  const cz = faceZ - r * 1.05;                                     // skull centre (z)
+  const eyeY = mt.eye != null ? cm(mt.eye - hd[1]) - 0.006 : browY - 0.018, glassZ = mt.eyeZ != null ? cm(mt.eyeZ - hd[2]) + 0.012 : faceZ - 0.012;
+  const k = r / 0.125;                                             // cartoon gear was built for r = 0.125
+  const H = (o, x, y, z, s = 1, rot = [0, 0, 0]) => put(b.Head, o, u, [x, y, z], rot, s);
+  const cap = (front, mesh = '#f1f5f9', back = false) => H(truckerCap(front, mesh, back), 0, browY + 0.012, cz + 0.005, k * 1.02);
+  const shades = (lens, frame, big) => H(aviators(lens, frame, big), 0, eyeY, glassZ, k * 0.9);
+  switch (arch) {
+    case 'bubba':
+      cap(R('camo', '#ffffff', { rep: 1.5 }));
+      H(aviators('#1a1a1a', '#c0c0c0', 1), 0, browY + 0.08, cz + r * 0.95, k * 0.95, [-0.5, 0, 0]);
+      break;
+    case 'cletus': {
+      const straw = R('straw', '#ffffff', { rep: 3 });
+      const hat = grp(cyl(0.25, 0.25, 0.012, straw, 32), at(cyl(0.11, 0.125, 0.11, straw, 24), 0, 0.05, 0), at(cyl(0.126, 0.126, 0.025, R('jersey', '#7f1d1d'), 24), 0, 0.015, 0));
+      H(hat, 0, browY + 0.02, cz, k);
+      H(new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.0025, 0.08, 4), M('#e8c547')), 0.02, browY - 0.085, faceZ + 0.01, 1, [1.25, 0, 0.35]);
+      break;
+    }
+    case 'darlene':
+      for (const sx of [-1, 1]) H(new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.0025, 6, 20), gold()), sx * r * 0.98, browY - 0.07, cz + 0.01, 1, [0, Math.PI / 2, 0]);
+      H(grp(at(new THREE.Mesh(new THREE.TorusGeometry(r * 1.02, 0.008, 6, 28), R('jersey', '#c81e1e')), 0, 0, 0, Math.PI / 2 - 0.25)), 0, browY + 0.035, cz, 1);
+      break;
+    case 'hank':
+      cap(R('jersey', team, { rep: 2 }), '#1f2937');
+      break;
+    case 'jimbo': {
+      const hat = R('linen', '#7c7a52', { rep: 3 });
+      H(grp(at(cyl(0.12, 0.13, 0.1, hat, 24), 0, 0.05, 0), at(cyl(0.2, 0.2, 0.012, hat, 32), 0, 0, 0, 0.1)), 0, browY + 0.015, cz, k * 0.95);
+      shades('#0f3b2e', '#111111', 1);
+      break;
+    }
+    case 'chad':
+      H(wayfarers(), 0, eyeY, glassZ, k * 0.85);
+      for (const sx of [-1, 1]) H(sph(0.007, M('#ffffff', { roughness: 0.2 })), sx * r * 0.97, eyeY - 0.04, cz + 0.01);
+      break;
+    case 'karen':
+      shades('#0b0b0b', '#c9a227', 1.35);
+      H(box(0.008, 0.13, 0.065, M('#111827', { roughness: 0.2, metalness: 0.3 })), r * 0.9, eyeY - 0.05, cz + 0.02);
+      break;
+    case 'golfdad': {
+      const c = R('jersey', '#f8fafc', { rep: 2 });
+      H(grp(new THREE.Mesh(new THREE.SphereGeometry(0.13, 22, 10, 0, Math.PI * 2, 0, Math.PI / 2), c), at(box(0.2, 0.012, 0.13, c), 0, 0.005, 0.15, 0.1), at(box(0.05, 0.03, 0.004, M('#1e3a5f')), 0, 0.06, 0.125, -0.3)), 0, browY + 0.012, cz + 0.005, k * 1.02);
+      break;
+    }
+    case 'brad':
+      for (const sx of [-1, 1]) H(sph(0.007, M('#ffffff', { roughness: 0.2 })), sx * r * 0.97, eyeY - 0.04, cz + 0.01);
+      put(b.LeftHand, cyl(0.03, 0.03, 0.02, M('#111111', { roughness: 0.3 }), 16), u, [0, -0.03, 0], [0, 0, Math.PI / 2]);
+      break;
+    case 'todd': {
+      const glass = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.05, transmission: 0.9, transparent: true, opacity: 0.3 });
+      const g = grp(...[-1, 1].map((sx) => at(new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.003, 18), glass), sx * 0.033, 0, 0, Math.PI / 2)), box(0.022, 0.003, 0.003, gold()));
+      H(g, 0, eyeY, glassZ + 0.004);
+      put(b.Spine2, box(0.06, 0.08, 0.004, M('#f8fafc', { roughness: 0.3 })), u, [0, 0.0, 0.17]);
+      break;
+    }
+  }
+  void topY;
 }

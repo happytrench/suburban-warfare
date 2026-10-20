@@ -7,7 +7,10 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import * as TX from './textures.js';
 import { buildGunModel } from './characters.js';
 import { loadMixamo, skeletonTemplate, mixamoClips } from './mixamo.js';
-import { buildCaricature, pickArchetype } from './caricatures.js';
+import { buildCaricature, buildHumanGear, pickArchetype, ARCHETYPES } from './caricatures.js';
+import { loadHuman, attachHuman } from './humans.js';
+
+const humans = new Map(); // archetype -> generated human asset, once loaded
 
 let template = null;      // Xbot: animation source + fallback skeleton
 let bodyTemplate = null;  // textured, skinned character body (same Mixamo skeleton)
@@ -22,7 +25,12 @@ export function loadRig(base = 'vendor/models/') {
   loading = (async () => {
     // A textured body can be dropped in here once a rig-compatible character with matching animations is available.
     // preferred: Mixamo rifle animations (their skeleton comes with them)
-    if (await loadMixamo(base)) { template = skeletonTemplate; clips = mixamoClips; return true; }
+    if (await loadMixamo(base)) {
+      template = skeletonTemplate; clips = mixamoClips;
+      // realistic bodies stream in behind; until one arrives that archetype uses its cartoon build
+      for (const a of [...ARCHETYPES.country, ...ARCHETYPES.suburban]) loadHuman(a).then((h) => { if (h) humans.set(a, h); });
+      return true;
+    }
     const [xbot, body] = [await loadGltf(`${base}Xbot.glb`), null];
     if (!xbot) return false;
     template = xbot.scene;
@@ -184,10 +192,17 @@ export function buildRiggedCharacter({ id, color, outfit }) {
   const unit = bones.Hips.getWorldScale(new THREE.Vector3()).x; // armature units → metres
 
   const archetype = pickArchetype(outfit, id);
+  let meshesForFlash = null, pendingHuman = null;
   if (skinned) {
     addFactionGear(bones, o, color, unit);
+  } else if (clips.back && humans.has(archetype)) {
+    const h = humans.get(archetype);
+    meshesForFlash = attachHuman(model, h);
+    model.updateMatrixWorld(true);
+    buildHumanGear(bones, bones.Hips.getWorldScale(new THREE.Vector3()).x, archetype, color, h.h.metrics);
   } else if (clips.back) {
     buildCaricature(bones, unit, archetype, color);
+    pendingHuman = archetype;
   } else {
   // legs
   for (const s of ['Left', 'Right']) {
@@ -303,8 +318,11 @@ export function buildRiggedCharacter({ id, color, outfit }) {
     : { mixer, actions, bones, pose, model };
   body.userData = {
     legs: [new THREE.Object3D(), new THREE.Object3D()], head: bones.Head, hips: holder, gun, rifle, shotgun, deer,
-    armR: new THREE.Object3D(), armL: new THREE.Object3D(), rig, mocap: rifleMocap, archetype,
+    armR: new THREE.Object3D(), armL: new THREE.Object3D(), rig, mocap: rifleMocap, archetype, human: !!meshesForFlash, pendingHuman,
   };
+  // own material instances per player so hit flashes only light up the one who got hit
+  const mc = new Map();
+  body.traverse((c) => { if (c.isMesh && c.material && !Array.isArray(c.material)) { if (!mc.has(c.material)) mc.set(c.material, c.material.clone()); c.material = mc.get(c.material); } });
   void Y;
   return body;
 }
@@ -322,3 +340,6 @@ export function animateRig(rig, speed, dt, pitch, alive) {
   mixer.update(dt);
   if (alive) rig.pose(pitch);
 }
+
+/** True once the realistic body for this archetype has loaded (remotes built before then can be rebuilt). */
+export const humanReady = (archetype) => humans.has(archetype);

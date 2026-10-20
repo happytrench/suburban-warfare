@@ -3,7 +3,8 @@
 // from the same origin, so it works behind any HTTPS proxy (wss:// is automatic).
 
 import http from 'node:http';
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, statSync, readFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { attachWebSocket } from './ws.js';
@@ -21,6 +22,8 @@ export function resolveStaticDir(env = process.env, argv = process.argv) {
   return path.join(ROOT, 'client');
 }
 
+const GZ_EXT = new Set(['.js', '.css', '.html', '.json', '.bin', '.fbx', '.svg', '.glb', '.gltf']);
+const gzCache = new Map();
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -87,6 +90,15 @@ export function createGameServer({
       'Cache-Control': rel.startsWith('/vendor/') ? 'public, max-age=86400' : 'no-cache',
     };
     if (req.headers['if-none-match'] === etag) { res.writeHead(304, headers).end(); return; }
+    // gzip compressible assets (meshes, animation, scripts) once and keep them in memory
+    if (GZ_EXT.has(ext) && st.size > 1024 && st.size < 32e6 && /\bgzip\b/.test(req.headers['accept-encoding'] || '')) {
+      let z = gzCache.get(file);
+      if (!z || z.etag !== etag) { z = { etag, buf: gzipSync(readFileSync(file), { level: 6 }) }; gzCache.set(file, z); }
+      headers['Content-Encoding'] = 'gzip'; headers.Vary = 'Accept-Encoding'; headers['Content-Length'] = z.buf.length;
+      res.writeHead(200, headers);
+      res.end(req.method === 'HEAD' ? undefined : z.buf);
+      return;
+    }
     headers['Content-Length'] = st.size;
     res.writeHead(200, headers);
     if (req.method === 'HEAD') { res.end(); return; }

@@ -10,7 +10,7 @@ import { buildWorld, buildSky, setQuality } from './world.js';
 import { buildCharacter, nameTag, playerColor, buildGunModel, muzzleOffset } from './characters.js';
 import { Net } from './net.js';
 import { Sfx } from './audio.js';
-import { loadRig, rigReady, buildRiggedCharacter, animateRig } from './rig.js';
+import { loadRig, rigReady, buildRiggedCharacter, animateRig, humanReady } from './rig.js';
 import { updateMixamo, hitMixamo } from './mixamo.js';
 
 // ======================================================================= helpers
@@ -445,7 +445,7 @@ function ensureRemote(id) {
   const team = info ? info.team : 0;
   const color = playerColor(id, team, mode());
   const outfit = outfitFor(id, team);
-  if (r && (r.color !== color || r.outfit !== outfit || r.quality !== settings.quality)) { removeRemote(id); r = null; }
+  if (r && (r.color !== color || r.outfit !== outfit || r.quality !== settings.quality || (r.obj.userData.pendingHuman && humanReady(r.obj.userData.pendingHuman)))) { removeRemote(id); r = null; }
   if (!r) {
     const useRig = rigReady() && settings.quality === 'high';
     const obj = useRig ? buildRiggedCharacter({ id, color, outfit }) : buildCharacter({ id, color, outfit, quality: settings.quality });
@@ -503,7 +503,11 @@ function updateRemotes(dt) {
       r.flash = Math.max(0, (r.flash || 0) - dt);
       const on = r.flash > 0;
       if (on !== r.flashing) {
-        r.obj.traverse((o) => { if (o.isMesh && o.material && o.material.emissive) { o.material.emissive.set(on ? '#ff2020' : '#000000'); o.material.emissiveIntensity = on ? 0.9 : 1; } });
+        r.obj.traverse((o) => {
+          const m = o.isMesh && o.material; if (!m || !m.emissive) return;
+          if (!m.userData.e0) m.userData.e0 = [m.emissive.clone(), m.emissiveIntensity];
+          if (on) { m.emissive.set('#ff2020'); m.emissiveIntensity = 0.9; } else { m.emissive.copy(m.userData.e0[0]); m.emissiveIntensity = m.userData.e0[1]; }
+        });
         r.flashing = on;
       }
     }

@@ -4,7 +4,8 @@
 import * as THREE from 'three';
 import { getMap } from '../shared/map.js';
 import { buildWorld, buildSky, setQuality } from '../js/world.js';
-import { loadRig, buildRiggedCharacter, animateRig } from '../js/rig.js';
+import { loadRig, buildRiggedCharacter, animateRig, humanReady } from '../js/rig.js';
+import { ARCHETYPES } from '../js/caricatures.js';
 import { updateMixamo } from '../js/mixamo.js';
 import { charTexturesReady } from '../js/caricatures.js';
 const q = new URLSearchParams(location.search);
@@ -14,6 +15,7 @@ const map = getMap('culdesac'); const scene = new THREE.Scene(); scene.fog = new
 scene.add(new THREE.HemisphereLight('#dff1ff', map.theme.hemiGround, 1.5)); const sun = new THREE.DirectionalLight('#ffe2b0', 3); sun.position.set(20, 30, 40); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20 }); scene.add(sun);
 scene.add(buildWorld(map));
 await loadRig('../vendor/models/');
+if (!q.get('cartoon')) for (let i = 0; i < 100 && ![...ARCHETYPES.country, ...ARCHETYPES.suburban].every(humanReady); i++) await new Promise((r) => setTimeout(r, 100));
 const only = q.get('only');
 const defs = [];
 for (let i = 0; i < 5; i++) defs.push({ id: i, outfit: 'country', color: '#c2410c', speed: 0 });
