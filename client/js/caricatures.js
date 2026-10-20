@@ -1,16 +1,73 @@
-// The six playable caricatures, built onto the motion-capture skeleton.
-// Exaggerated cartoon proportions so each one reads at a glance from across the map.
-//   Backroad Boys:       Bubba, Cletus, Darlene
-//   Pristine Pines HOA:  Chad, Karen, Golf Dad
+// The playable caricatures, built onto the motion-capture skeleton.
+// Exaggerated cartoon proportions so each one reads at a glance from across the map,
+// dressed in photo-scanned materials (Poly Haven CC0 denim, jersey, linen, leather, velour)
+// plus generated skin, hair, straw and woodland camo — all with normal + roughness maps.
+//   Backroad Boys:       Bubba, Cletus, Darlene, Hank, Jimbo
+//   Pristine Pines HOA:  Chad, Karen, Golf Dad, Brad, Todd
 import * as THREE from 'three';
 import * as TX from './textures.js';
 
-export const ARCHETYPES = { country: ['bubba', 'cletus', 'darlene'], suburban: ['chad', 'karen', 'golfdad'] };
+export const ARCHETYPES = { country: ['bubba', 'cletus', 'darlene', 'hank', 'jimbo'], suburban: ['chad', 'karen', 'golfdad', 'brad', 'todd'] };
 export const pickArchetype = (outfit, id) => { const l = ARCHETYPES[outfit] || ARCHETYPES.suburban; return l[id % l.length]; };
-export const DISPLAY = { bubba: 'Bubba', cletus: 'Cletus', darlene: 'Darlene', chad: 'Chad', karen: 'Karen', golfdad: 'Golf Dad' };
+export const DISPLAY = { bubba: 'Bubba', cletus: 'Cletus', darlene: 'Darlene', hank: 'Hank', jimbo: 'Jimbo', chad: 'Chad', karen: 'Karen', golfdad: 'Golf Dad', brad: 'Brad', todd: 'Todd' };
 
+// ---------------------------------------------------------------- materials
+const TBASE = new URL('../vendor/textures/char/', import.meta.url).href;
+const loader = new THREE.TextureLoader();
+const texCache = new Map();
+const pending = [];
+function T(file, rep, srgb) {
+  const key = file + rep;
+  if (texCache.has(key)) return texCache.get(key);
+  let res;
+  pending.push(new Promise((r) => { res = r; }));
+  const t = loader.load(TBASE + file + '.jpg', () => res(), undefined, () => res());
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(rep, rep);
+  t.anisotropy = 4;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  texCache.set(key, t);
+  return t;
+}
+// kind → [diffuse, normal, roughness map, normal strength, sheen]
+const SETS = {
+  denim: ['denim_fabric', 'denim_fabric', 'denim_fabric', 1.0, 0.6],
+  jersey: ['cotton_jersey', 'cotton_jersey', 'cotton_jersey', 0.9, 0.8],
+  linen: ['rough_linen', 'rough_linen', 'rough_linen', 1.0, 0.7],
+  knit: ['velour_velvet', 'velour_velvet', 'velour_velvet', 1.2, 1.0],
+  leather: ['brown_leather', 'brown_leather', 'brown_leather', 0.8, 0],
+  wleather: ['leather_white', 'leather_white', 'leather_white', 0.8, 0],
+  camo: ['camo', 'cotton_jersey', 'cotton_jersey', 0.9, 0.6],
+  skin: ['skin', 'skin', 'skin', 0.6, 0],
+  hair: ['hair', 'hair', null, 1.0, 1.0],
+  straw: ['straw', 'straw', null, 1.2, 0],
+};
+const matCache = new Map();
+/** Realistic material: kind from SETS, tinted by color; rep = texture tiling per UV unit. */
+function R(kind, color = '#ffffff', { rep = 2, rough = 1, metal = 0, map = null, tag = '' } = {}) {
+  const key = `${kind}|${color}|${rep}|${rough}|${tag}`;
+  if (matCache.has(key)) return matCache.get(key);
+  const [d, n, r, ns, sheen] = SETS[kind];
+  const m = new THREE.MeshPhysicalMaterial({
+    color, roughness: rough, metalness: metal,
+    map: map || T(d + '_diff', rep, true), normalMap: T(n + '_nor_gl', rep, false),
+    roughnessMap: r ? T(r + '_rough', rep, false) : null,
+  });
+  m.normalScale.set(ns, ns);
+  if (sheen) { m.sheen = sheen; m.sheenRoughness = 0.7; m.sheenColor = new THREE.Color(color).lerp(new THREE.Color('#ffffff'), 0.5); }
+  if (kind === 'skin') { m.sheen = 0.12; m.sheenRoughness = 0.4; m.sheenColor = new THREE.Color('#ffb59c'); m.roughness = 1; m.emissive = new THREE.Color(color).multiply(new THREE.Color('#5a1a10')); m.emissiveIntensity = 0.2; } // fake subsurface: shadows go warm, not grey
+  if (kind === 'hair') { m.roughness = 0.5; }
+  matCache.set(key, m);
+  return m;
+}
+let _plaid = null;
+const plaid = () => { if (!_plaid) { _plaid = TX.buffalo().clone(); _plaid.wrapS = _plaid.wrapT = THREE.RepeatWrapping; _plaid.repeat.set(3, 3); _plaid.needsUpdate = true; } return _plaid; };
+const SKIN = (c) => R('skin', c, { rep: 2.5 });
+const HAIR = (c) => R('hair', c, { rep: 1 });
+/** Resolves once every character texture has loaded (or failed). */
+export const charTexturesReady = () => Promise.all(pending);
+// plain materials for small hard bits (lenses, buckles, plastic)
 const M = (c, extra = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.75, ...extra });
-const tex = (map, c = '#ffffff', extra = {}) => new THREE.MeshStandardMaterial({ color: c, map, roughness: 0.85, ...extra });
 
 // Capsule from a bone to its child joint. r in metres; r2 optional end radius (tapers via scale).
 function seg(bone, child, r, mat, unit, { r2 = null, sx = 1, sz = 1 } = {}) {
@@ -48,11 +105,11 @@ const at = (o, x, y, z, rx = 0, ry = 0, rz = 0) => { o.position.set(x, y, z); o.
 // ---------------------------------------------------------------- heads (big cartoon heads, +z = face)
 function headBase(skin, faceKind, { w = 1, h = 1.12, jaw = 0 } = {}) {
   const g = new THREE.Group();
-  g.add(at(sph(0.12, skin, [w, h, 1]), 0, 0.1, 0));
+  g.add(at(sph(0.12, skin, [w, h, 1], 28), 0, 0.1, 0));
   if (jaw) g.add(at(sph(0.1, skin, [w * 1.05, 0.7, 0.95]), 0, 0.03, 0.01 + jaw * 0.01));
   const face = new THREE.Mesh(
     new THREE.SphereGeometry(0.1215, 18, 12, Math.PI * 0.5 - 0.75, 1.5, Math.PI * 0.22, Math.PI * 0.6),
-    new THREE.MeshStandardMaterial({ map: TX.face(faceKind), transparent: true, alphaTest: 0.05, roughness: 0.7, depthWrite: false }),
+    new THREE.MeshStandardMaterial({ map: TX.face(faceKind), transparent: true, alphaTest: 0.02, roughness: 0.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 }),
   );
   face.scale.set(w, h, 1); face.position.y = 0.1; g.add(face);
   g.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.05, 8), skin), 0, 0.085, 0.125, Math.PI / 2));
@@ -82,101 +139,177 @@ function truckerCap(front, mesh = '#f1f5f9', backwards = false) {
   return g;
 }
 
-// ---------------------------------------------------------------- the six
+// ---------------------------------------------------------------- the cast
+const gold = () => M('#d4a63a', { metalness: 0.9, roughness: 0.25 });
 function buildBubba(b, u, team) {
-  const skin = M('#efb894'), tan = M('#d9805f'), tank = M('#f4f4ee'), jeans = tex(TX.denim()), boots = M('#5a3519', { roughness: 0.6 });
-  const camo = tex(TX.camo());
+  const skin = SKIN('#efb894'), tan = SKIN('#cf7a58'), tank = R('jersey', '#f1efe6', { rep: 3 }), jeans = R('denim', '#ffffff', { rep: 2.5 }), boots = R('leather', '#a07050', { rep: 2 });
+  const camo = R('camo', '#ffffff', { rep: 1.5 });
   legs(b, u, jeans, jeans, boots, { thigh: 0.115, shin: 0.095, foot: 0.075 });
   boots2(b, u, boots, 0.085, 0.18);
-  torso(b, u, tank, tank, tank, { hip: 0.18, mid: 0.2, chest: 0.21 });
-  put(b.Spine, sph(0.27, tank, [1.05, 0.95, 0.95]), u, [0, 0.0, 0.13]);             // the beer belly
-  put(b.Hips, sph(0.2, tank, [1.1, 0.7, 0.95]), u, [0, 0.03, 0.1]);
-  put(b.Hips, at(box(0.44, 0.06, 0.34, M('#3b2412')), 0, 0, 0), u, [0, 0.07, 0.02]);  // belt
-  put(b.Hips, box(0.11, 0.075, 0.02, M('#e0b13b', { metalness: 0.8, roughness: 0.3 })), u, [0, 0.07, 0.205]); // buckle
+  torso(b, u, tank, tank, tank, { hip: 0.18, mid: 0.2, chest: 0.21, neck: tan });
+  put(b.Spine, sph(0.27, tank, [1.05, 0.95, 0.95], 24), u, [0, 0.0, 0.13]);             // the beer belly
+  put(b.Hips, sph(0.2, tank, [1.1, 0.7, 0.95], 20), u, [0, 0.03, 0.1]);
+  put(b.Hips, at(box(0.44, 0.06, 0.34, R('leather', '#6b4a33')), 0, 0, 0), u, [0, 0.07, 0.02]);  // belt
+  put(b.Hips, box(0.11, 0.075, 0.02, gold()), u, [0, 0.07, 0.205]);                     // buckle
   arms(b, u, tan, tan, tan, skin, { up: 0.07, fore: 0.058 });                          // sleeveless, farmer's tan
   put(b.Neck, sph(0.08, tan, [1.3, 0.8, 1.2]), u, [0, 0.02, 0]);
-  const h = headBase(skin, 'beard', { w: 1.08, jaw: 1 });
-  h.add(at(sph(0.11, M('#6b4423', { roughness: 1 }), [1.05, 0.95, 0.75]), 0, 0.02, 0.06));   // big beard
-  h.add(at(box(0.2, 0.2, 0.09, M('#7a4f2a', { roughness: 1 })), 0, 0.03, -0.11));              // mullet
+  const h = headBase(skin, 'beard+brown', { w: 1.08, jaw: 1 });
+  h.add(at(sph(0.11, HAIR('#6b4423'), [1.05, 0.95, 0.75]), 0, 0.02, 0.06));               // big beard
+  h.add(at(box(0.2, 0.2, 0.09, HAIR('#7a4f2a')), 0, 0.03, -0.11));                         // mullet
   h.add(at(truckerCap(camo, '#f1f5f9'), 0, 0.15, 0));
-  h.add(at(aviators('#1a1a1a', '#c0c0c0', 1.1), 0, 0.22, 0.12, -0.5));                          // shades parked on the cap
+  h.add(at(aviators('#1a1a1a', '#c0c0c0', 1.1), 0, 0.22, 0.12, -0.5));                      // shades parked on the cap
   put(b.Head, h, u, [0, 0, 0.01], [0, 0, 0], 1.32);
 }
 function buildCletus(b, u, team) {
-  const skin = M('#e8b08c'), over = tex(TX.denim()), boots = M('#4a2f18', { roughness: 0.6 }), straw = M('#d8b46a', { roughness: 0.95 });
+  const skin = SKIN('#e8b08c'), over = R('denim', '#c9d6e6', { rep: 2.5 }), boots = R('leather', '#7a5638'), straw = R('straw', '#ffffff', { rep: 3 });
   legs(b, u, over, over, boots, { thigh: 0.07, shin: 0.06, foot: 0.07 });
   boots2(b, u, boots, 0.07, 0.14);
-  torso(b, u, over, skin, skin, { hip: 0.13, mid: 0.12, chest: 0.13 });                 // shirtless, skinny
+  torso(b, u, over, skin, skin, { hip: 0.13, mid: 0.12, chest: 0.13, neck: skin });   // shirtless, skinny
   put(b.Spine1, box(0.22, 0.24, 0.03, over), u, [0, 0.0, 0.11]);                         // overall bib
   put(b.Spine1, at(box(0.035, 0.33, 0.02, over), 0, 0, 0, -0.15), u, [-0.07, 0.17, 0.08]); // one strap up...
   put(b.Spine, at(box(0.035, 0.28, 0.02, over), 0, 0, 0, 0.3, 0, 0.5), u, [0.11, -0.02, 0.12]); // ...one strap hanging
+  for (const sx of [-1, 1]) put(b.Spine1, sph(0.012, M('#c0c0c0', { metalness: 0.9, roughness: 0.3 })), u, [sx * 0.07, 0.11, 0.13]);
   arms(b, u, skin, skin, skin, skin, { up: 0.045, fore: 0.04 });
-  const h = headBase(skin, 'clean', { w: 0.92, h: 1.25 });
-  for (const sx of [-1, 1]) h.add(at(box(0.024, 0.032, 0.01, M('#fffbe6')), sx * 0.014, 0.035, 0.122)); // buck teeth
-  h.add(at(cyl(0.25, 0.25, 0.012, straw, 24), 0, 0.17, 0));                                // straw hat brim
-  h.add(at(cyl(0.11, 0.125, 0.11, straw, 18), 0, 0.22, 0));
-  h.add(at(cyl(0.126, 0.126, 0.025, M('#7f1d1d'), 18), 0, 0.185, 0));
+  const h = headBase(skin, 'stubble+blue', { w: 0.92, h: 1.25 });
+  for (const sx of [-1, 1]) h.add(at(box(0.024, 0.032, 0.01, M('#f3eed8', { roughness: 0.3 })), sx * 0.014, 0.035, 0.122)); // buck teeth
+  h.add(at(cyl(0.25, 0.25, 0.012, straw, 32), 0, 0.17, 0));                                // straw hat brim
+  h.add(at(cyl(0.11, 0.125, 0.11, straw, 24), 0, 0.22, 0));
+  h.add(at(cyl(0.126, 0.126, 0.025, R('jersey', '#7f1d1d'), 24), 0, 0.185, 0));
   h.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.09, 4), M('#e8c547')), 0.04, 0.02, 0.14, 1.2, 0, 0.3)); // piece of straw in his teeth
   put(b.Head, h, u, [0, 0, 0.01], [0, 0, 0], 1.3);
 }
 function buildDarlene(b, u, team) {
-  const skin = M('#f0c0a0'), jorts = tex(TX.denim()), camo = tex(TX.camo()), boot = M('#8a4b1f', { roughness: 0.5 }), hair = M('#e8c26e', { roughness: 0.95 });
+  const skin = SKIN('#f0c0a0'), jorts = R('denim', '#e2ecf5', { rep: 2.5 }), camo = R('camo', '#ffffff', { rep: 1.5 }), boot = R('leather', '#c98a5a'), hair = HAIR('#e8c26e');
   legs(b, u, jorts, skin, boot, { thigh: 0.085, shin: 0.065, foot: 0.06, thighTo: 0.35 });
   boots2(b, u, boot, 0.07, 0.3);                                                          // tall cowboy boots
-  torso(b, u, jorts, skin, camo, { hip: 0.15, mid: 0.125, chest: 0.15 });                // camo crop top, bare midriff
+  torso(b, u, jorts, skin, camo, { hip: 0.15, mid: 0.125, chest: 0.15, neck: skin });   // camo crop top, bare midriff
   arms(b, u, skin, skin, skin, skin, { up: 0.045, fore: 0.04 });
-  const h = headBase(skin, 'clean', { w: 0.95 });
-  h.add(at(sph(0.16, hair, [1.25, 1.0, 0.95]), 0, 0.19, -0.075));                         // big teased hair
-  h.add(at(sph(0.1, hair, [1, 1.4, 0.8]), 0, 0.02, -0.12));
-  for (const sx of [-1, 1]) h.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.004, 6, 16), M('#e0b13b', { metalness: 0.9, roughness: 0.2 })), sx * 0.125, 0.04, 0, 0, Math.PI / 2));
-  h.add(at(box(0.16, 0.012, 0.012, M('#c81e1e')), 0, 0.2, 0.08));                       // red bandana band
+  const h = headBase(skin, 'green', { w: 0.95 });
+  h.add(at(sph(0.16, hair, [1.25, 1.0, 0.95], 22), 0, 0.19, -0.075));                     // big teased hair
+  h.add(at(sph(0.1, hair, [1, 1.4, 0.8], 18), 0, 0.02, -0.12));
+  for (const sx of [-1, 1]) h.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.004, 6, 16), gold()), sx * 0.125, 0.04, 0, 0, Math.PI / 2));
+  h.add(at(box(0.16, 0.012, 0.012, R('jersey', '#c81e1e')), 0, 0.2, 0.08));             // red bandana band
   put(b.Head, h, u, [0, 0, 0.01], [0, 0, 0], 1.28);
 }
+function buildHank(b, u, team) {
+  // long-haul trucker: red buffalo-check flannel, handlebar mustache, dip in his lip
+  const skin = SKIN('#e3a684'), flannel = R('jersey', '#ffffff', { rep: 1.5, map: plaid(), tag: 'flannel' }), jeans = R('denim', '#9fb0c4', { rep: 2.5 }), boots = R('leather', '#8a6040');
+  legs(b, u, jeans, jeans, boots, { thigh: 0.11, shin: 0.09, foot: 0.075 });
+  boots2(b, u, boots, 0.085, 0.22);
+  torso(b, u, jeans, flannel, flannel, { hip: 0.18, mid: 0.19, chest: 0.2, neck: skin });
+  put(b.Spine, sph(0.25, flannel, [1.05, 0.95, 0.95], 24), u, [0, 0.0, 0.12]);
+  put(b.Hips, at(box(0.43, 0.06, 0.33, R('leather', '#4a3222')), 0, 0, 0), u, [0, 0.07, 0.02]);
+  put(b.Hips, box(0.1, 0.07, 0.02, M('#c0c0c0', { metalness: 0.9, roughness: 0.25 })), u, [0, 0.07, 0.2]);
+  for (const sx of [-1, 1]) put(b.Hips, at(box(0.04, 0.34, 0.015, R('jersey', '#2a2a2a')), 0, 0, 0, -0.18), u, [sx * 0.09, 0.27, 0.19]); // suspenders over the gut
+  arms(b, u, flannel, flannel, flannel, skin, { up: 0.068, fore: 0.056 });
+  const h = headBase(skin, 'handlebar+stubble+brown+old', { w: 1.06, jaw: 1.2 });
+  h.add(at(sph(0.022, skin), 0.05, 0.035, 0.1));                                           // the dip
+  h.add(at(truckerCap(R('jersey', team, { rep: 2 }), '#1f2937'), 0, 0.15, 0));
+  h.add(at(box(0.07, 0.03, 0.004, M('#f8fafc')), 0, 0.2, 0.127, -0.3));
+  for (const sx of [-1, 1]) h.add(at(sph(0.04, HAIR('#8c8680'), [0.6, 1, 1]), sx * 0.11, 0.1, -0.04));
+  put(b.Head, h, u, [0, 0, 0.01], [0, 0, 0], 1.3);
+}
+function buildJimbo(b, u, team) {
+  // bass fisherman: khaki vest full of lures, bucket hat, cargo shorts, white rubber "redneck Reeboks"
+  const skin = SKIN('#e9b28e'), tee = R('camo', '#ffffff', { rep: 1.5 }), vest = R('linen', '#b9a77a', { rep: 2 }), shorts = R('linen', '#6b6a4a', { rep: 2 }), rubber = M('#eeeeea', { roughness: 0.35 });
+  legs(b, u, shorts, skin, rubber, { thigh: 0.095, shin: 0.075, foot: 0.072, thighTo: 0.6 });
+  boots2(b, u, rubber, 0.085, 0.3);
+  torso(b, u, shorts, tee, tee, { hip: 0.16, mid: 0.17, chest: 0.18, neck: skin });
+  put(b.Spine, sph(0.21, tee, [1.02, 0.9, 0.95], 22), u, [0, 0.02, 0.09]);
+  for (const sx of [-1, 1]) {                                                              // open vest panels with pockets
+    put(b.Spine1, at(box(0.13, 0.3, 0.03, vest), 0, 0, 0, 0, sx * 0.25), u, [sx * 0.1, 0.06, 0.15]);
+    for (const y of [-0.02, 0.1]) put(b.Spine1, box(0.08, 0.06, 0.02, vest), u, [sx * 0.1, y, 0.175]);
+  }
+  for (const [x, y, c] of [[-0.11, 0.17, '#e11d48'], [0.1, 0.15, '#facc15'], [-0.08, 0.0, '#22c55e']]) put(b.Spine1, sph(0.014, M(c, { roughness: 0.3, metalness: 0.2 }), [1, 2, 1]), u, [x, y, 0.19]); // lures
+  arms(b, u, tee, skin, skin, skin, { up: 0.062, fore: 0.052 });
+  const h = headBase(skin, 'goatee+stubble+blue', { w: 1.04, jaw: 0.8 });
+  const hat = R('linen', '#7c7a52', { rep: 3 });
+  h.add(at(cyl(0.12, 0.13, 0.1, hat, 24), 0, 0.2, 0));
+  h.add(at(cyl(0.2, 0.2, 0.012, hat, 32), 0, 0.15, 0, 0.12, 0, 0));
+  h.add(at(aviators('#0f3b2e', '#111111', 1.1), 0, 0.105, 0.122));                          // green-mirror fishing shades
+  put(b.Head, h, u, [0, 0, 0.01], [0, 0, 0], 1.3);
+}
 function buildChad(b, u, team) {
-  const skin = M('#e9b48c'), shorts = M('#f4978e'), polo = tex(TX.knit('#9fd3f0')), shoe = M('#8b5a2b', { roughness: 0.4 }), sweater = M('#fde68a');
+  const skin = SKIN('#e9b48c'), shorts = R('linen', '#f4978e', { rep: 2 }), polo = R('jersey', '#9fd3f0', { rep: 3 }), shoe = R('leather', '#b07a4a'), sweater = R('knit', '#fde68a', { rep: 2 });
   legs(b, u, shorts, skin, shoe, { thigh: 0.09, shin: 0.07, foot: 0.07, thighTo: 0.55 });
-  for (const s of ['Left', 'Right']) put(b[`${s}Foot`], box(0.1, 0.02, 0.28, M('#f5f5f0')), u, [0, -0.03, 0.06]);   // boat-shoe soles
-  torso(b, u, shorts, polo, polo, { hip: 0.16, mid: 0.17, chest: 0.21 });               // broad chest, gym bro
+  for (const s of ['Left', 'Right']) put(b[`${s}Foot`], box(0.1, 0.02, 0.28, M('#f5f5f0', { roughness: 0.6 })), u, [0, -0.03, 0.06]);   // boat-shoe soles
+  torso(b, u, shorts, polo, polo, { hip: 0.16, mid: 0.17, chest: 0.21, neck: skin });    // broad chest, gym bro
   arms(b, u, polo, skin, skin, skin, { up: 0.07, fore: 0.055 });
-  for (const sx of [-1, 1]) put(b.Spine2, at(box(0.09, 0.11, 0.015, M('#ffffff')), 0, 0, 0, -0.25, 0, sx * 0.35), u, [sx * 0.07, 0.25, 0.09]); // POPPED collar
-  put(b.Spine2, at(new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.042, 8, 20, Math.PI), sweater), 0, 0, 0, -Math.PI / 2.3), u, [0, 0.2, 0.0]); // sweater over the shoulders
+  for (const sx of [-1, 1]) put(b.Spine2, at(box(0.09, 0.11, 0.015, R('jersey', '#ffffff')), 0, 0, 0, -0.25, 0, sx * 0.35), u, [sx * 0.07, 0.25, 0.09]); // POPPED collar
+  put(b.Spine2, at(new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.042, 10, 24, Math.PI), sweater), 0, 0, 0, -Math.PI / 2.3), u, [0, 0.2, 0.0]); // sweater over the shoulders
   put(b.Spine2, sph(0.05, sweater), u, [0, 0.1, 0.17]);
-  const h = headBase(skin, 'grin', { w: 1.05, jaw: 1.5 });
-  h.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.126, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2.4), M('#d9b45a', { roughness: 0.35 })), 0, 0.11, -0.01)); // slicked-back hair
-  h.add(at(sph(0.06, M('#d9b45a', { roughness: 0.35 }), [1.6, 0.55, 1.1]), 0, 0.21, 0.04));
+  const h = headBase(skin, 'grin+blue', { w: 1.05, jaw: 1.5 });
+  const gel = R('hair', '#d9b45a', { rep: 1, tag: 'gel' }); gel.roughness = 0.3;
+  h.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.126, 22, 10, 0, Math.PI * 2, 0, Math.PI / 2.4), gel), 0, 0.11, -0.01)); // slicked-back hair
+  h.add(at(sph(0.06, gel, [1.6, 0.55, 1.1]), 0, 0.21, 0.04));
   h.add(at(wayfarers(), 0, 0.11, 0.122));
-  for (const sx of [-1, 1]) h.add(at(sph(0.012, M('#ffffff')), sx * 0.12, 0.08, 0.02)); // AirPods
+  for (const sx of [-1, 1]) h.add(at(sph(0.012, M('#ffffff', { roughness: 0.2 })), sx * 0.12, 0.08, 0.02)); // AirPods
   put(b.Head, h, u, [0, 0, 0.01], [0, 0, 0], 1.3);
 }
 function buildKaren(b, u, team) {
-  const skin = M('#f3cfb5'), legg = M('#1f1f24', { roughness: 0.5 }), top = tex(TX.knit('#c4b5fd')), shoe = M('#f8fafc'), hair = M('#ead7a2', { roughness: 0.9 });
+  const skin = SKIN('#f3cfb5'), legg = R('jersey', '#26262c', { rep: 3, rough: 0.8 }), top = R('knit', '#c4b5fd', { rep: 2 }), shoe = R('wleather', '#ffffff'), hair = HAIR('#ead7a2');
   legs(b, u, legg, legg, shoe, { thigh: 0.08, shin: 0.06, foot: 0.06 });
-  torso(b, u, legg, top, top, { hip: 0.15, mid: 0.13, chest: 0.15 });
+  torso(b, u, legg, top, top, { hip: 0.15, mid: 0.13, chest: 0.15, neck: skin });
   arms(b, u, top, top, skin, skin, { up: 0.048, fore: 0.042 });
-  const h = headBase(skin, 'clean', { w: 0.95, h: 1.15 });
-  h.add(at(sph(0.14, hair, [1.15, 0.8, 0.95]), 0, 0.16, -0.05));                      // the bob...
+  const h = headBase(skin, 'blue', { w: 0.95, h: 1.15 });
+  h.add(at(sph(0.14, hair, [1.15, 0.8, 0.95], 22), 0, 0.16, -0.05));                  // the bob...
   h.add(at(box(0.05, 0.17, 0.13, hair), 0.125, 0.04, 0.0, 0, 0, -0.1));                 // ...long on one side
   h.add(at(box(0.04, 0.1, 0.12, hair), -0.125, 0.08, 0.0, 0, 0, 0.1));                  // ...short on the other
   h.add(at(aviators('#0b0b0b', '#c9a227', 1.45), 0, 0.105, 0.122));                     // GIANT sunglasses
-  h.add(at(box(0.012, 0.13, 0.065, M('#111827', { roughness: 0.2 })), 0.13, 0.08, 0.02)); // phone glued to her ear
+  h.add(at(box(0.012, 0.13, 0.065, M('#111827', { roughness: 0.2, metalness: 0.3 })), 0.13, 0.08, 0.02)); // phone glued to her ear
   put(b.Head, h, u, [0, 0, 0.01], [0, 0, 0], 1.3);
 }
 function buildGolfDad(b, u, team) {
-  const skin = M('#eab995'), polo = tex(TX.knit('#1e3a5f')), khaki = M('#d6c7a1'), shoe = M('#f8fafc', { roughness: 0.4 }), cap = M('#f8fafc');
+  const skin = SKIN('#eab995'), polo = R('jersey', '#1e3a5f', { rep: 3 }), khaki = R('linen', '#d6c7a1', { rep: 2.5 }), shoe = R('wleather', '#ffffff'), cap = R('jersey', '#f8fafc', { rep: 2 });
   legs(b, u, khaki, khaki, shoe, { thigh: 0.095, shin: 0.075, foot: 0.07 });
-  for (const s of ['Left', 'Right']) put(b[`${s}Foot`], box(0.11, 0.025, 0.26, M('#9ca3af')), u, [0, -0.03, 0.05]);
-  torso(b, u, khaki, polo, polo, { hip: 0.17, mid: 0.18, chest: 0.18 });
-  put(b.Spine, sph(0.22, polo, [1.02, 0.9, 0.95]), u, [0, 0.02, 0.09]);                // dad gut
-  put(b.Hips, box(0.42, 0.05, 0.32, M('#1f2937')), u, [0, 0.07, 0.02]);
+  for (const s of ['Left', 'Right']) put(b[`${s}Foot`], box(0.11, 0.025, 0.26, M('#9ca3af', { roughness: 0.6 })), u, [0, -0.03, 0.05]);
+  torso(b, u, khaki, polo, polo, { hip: 0.17, mid: 0.18, chest: 0.18, neck: skin });
+  put(b.Spine, sph(0.22, polo, [1.02, 0.9, 0.95], 22), u, [0, 0.02, 0.09]);             // dad gut
+  put(b.Hips, box(0.42, 0.05, 0.32, R('leather', '#3a3a3a')), u, [0, 0.07, 0.02]);
   arms(b, u, polo, skin, skin, skin, { up: 0.062, fore: 0.05 });
-  put(b.LeftHand, sph(0.05, M('#ffffff'), [0.95, 1.35, 0.65]), u, [0, 0.05, 0]);       // golf glove
-  const h = headBase(skin, 'clean', { w: 1.02, jaw: 0.8 });
-  h.add(at(box(0.07, 0.016, 0.015, M('#8a8a8a')), 0, 0.055, 0.12));                      // grey mustache
-  for (const sx of [-1, 1]) h.add(at(sph(0.04, M('#9ca3af', { roughness: 1 }), [0.6, 1, 1]), sx * 0.11, 0.1, -0.03));
-  h.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.13, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2), cap), 0, 0.14, 0));
+  put(b.LeftHand, sph(0.05, R('wleather', '#ffffff', { rep: 1 }), [0.95, 1.35, 0.65]), u, [0, 0.05, 0]); // golf glove
+  const h = headBase(skin, 'mustache+old+blue', { w: 1.02, jaw: 0.8 });
+  for (const sx of [-1, 1]) h.add(at(sph(0.04, HAIR('#a3a3a3'), [0.6, 1, 1]), sx * 0.11, 0.1, -0.03));
+  h.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.13, 22, 10, 0, Math.PI * 2, 0, Math.PI / 2), cap), 0, 0.14, 0));
   h.add(at(box(0.2, 0.012, 0.13, cap), 0, 0.145, 0.15, 0.1));
   h.add(at(box(0.05, 0.03, 0.005, M('#1e3a5f')), 0, 0.2, 0.125, -0.3));                 // club logo
   put(b.Head, h, u, [0, 0, 0.01], [0, 0, 0], 1.28);
+}
+function buildBrad(b, u, team) {
+  // tech bro: navy fleece vest over a blue oxford, slim chinos, white sneakers, man bun
+  const skin = SKIN('#ecbd98'), oxford = R('linen', '#bcd4ee', { rep: 3 }), vest = R('knit', '#1f2a44', { rep: 2 }), chinos = R('linen', '#4b5563', { rep: 2.5 }), shoe = R('wleather', '#ffffff');
+  legs(b, u, chinos, chinos, shoe, { thigh: 0.08, shin: 0.06, foot: 0.068 });
+  for (const s of ['Left', 'Right']) put(b[`${s}Foot`], box(0.105, 0.03, 0.27, M('#f4f4f2', { roughness: 0.5 })), u, [0, -0.03, 0.06]);
+  torso(b, u, chinos, vest, vest, { hip: 0.15, mid: 0.16, chest: 0.18, neck: skin });
+  put(b.Spine2, at(box(0.012, 0.3, 0.012, M('#c0c0c0', { metalness: 0.9, roughness: 0.3 })), 0, 0, 0), u, [0, 0.05, 0.155]); // vest zipper
+  put(b.Spine2, box(0.05, 0.02, 0.005, M('#e5e7eb')), u, [0.07, 0.12, 0.152]);          // little logo patch
+  arms(b, u, oxford, oxford, oxford, skin, { up: 0.055, fore: 0.046 });
+  put(b.LeftForeArm, cyl(0.05, 0.05, 0.04, M('#111111', { roughness: 0.3 }), 16), u, [0, 0.21, 0]); // smart watch
+  const h = headBase(skin, 'stubble+brown', { w: 0.98, jaw: 1.2 });
+  const hair = HAIR('#3b2a1e');
+  h.add(at(new THREE.Mesh(new THREE.SphereGeometry(0.125, 22, 10, 0, Math.PI * 2, 0, Math.PI / 2.6), hair), 0, 0.12, -0.005));
+  h.add(at(sph(0.045, hair), 0, 0.235, -0.07));                                            // man bun
+  for (const sx of [-1, 1]) h.add(at(sph(0.012, M('#ffffff', { roughness: 0.2 })), sx * 0.12, 0.08, 0.02));
+  put(b.Head, h, u, [0, 0, 0.01], [0, 0, 0], 1.28);
+}
+function buildTodd(b, u, team) {
+  // HOA president: tan cardigan, pleated khakis, loafers, horseshoe bald spot, rimless glasses, lanyard
+  const skin = SKIN('#efc2a2'), cardigan = R('knit', '#a68a64', { rep: 2.5 }), shirt = R('linen', '#f1f5f9', { rep: 3 }), khaki = R('linen', '#cbbd94', { rep: 2.5 }), loafer = R('leather', '#7a4a2c');
+  legs(b, u, khaki, khaki, loafer, { thigh: 0.1, shin: 0.075, foot: 0.066 });
+  torso(b, u, khaki, cardigan, cardigan, { hip: 0.18, mid: 0.18, chest: 0.17, neck: skin });
+  put(b.Spine, sph(0.23, cardigan, [1.02, 0.92, 0.95], 22), u, [0, 0.02, 0.09]);
+  put(b.Spine2, box(0.07, 0.2, 0.02, shirt), u, [0, 0.1, 0.14]);                         // shirt placket under the cardigan
+  for (let i = 0; i < 4; i++) put(b.Spine1, sph(0.01, M('#5b3a1e', { roughness: 0.4 })), u, [0.04, 0.12 - i * 0.07, 0.205 - i * 0.01]);
+  put(b.Spine2, at(new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.006, 6, 24), R('jersey', team, { rep: 1 })), 0, 0, 0, Math.PI / 2 + 0.4), u, [0, 0.16, 0.06]); // lanyard
+  put(b.Spine1, box(0.06, 0.08, 0.006, M('#f8fafc', { roughness: 0.3 })), u, [0, 0.1, 0.19]);   // HOA badge
+  arms(b, u, cardigan, cardigan, cardigan, skin, { up: 0.06, fore: 0.05 });
+  const h = headBase(skin, 'old+green', { w: 1.04, h: 1.18, jaw: 0.6 });
+  for (const sx of [-1, 1]) h.add(at(sph(0.045, HAIR('#6b5a48'), [0.55, 0.9, 1.2]), sx * 0.11, 0.1, -0.04)); // the horseshoe
+  h.add(at(sph(0.09, HAIR('#6b5a48'), [1.3, 0.6, 0.6]), 0, 0.09, -0.1));
+  const glass = new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.05, transmission: 0.9, transparent: true, opacity: 0.35 });
+  for (const sx of [-1, 1]) h.add(at(new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.004, 16), glass), sx * 0.04, 0.115, 0.124, Math.PI / 2));
+  h.add(at(box(0.026, 0.004, 0.004, gold()), 0, 0.118, 0.126));
+  put(b.Head, h, u, [0, 0, 0.01], [0, 0, 0], 1.3);
 }
 
 // ---------------------------------------------------------------- shared body parts
@@ -208,12 +341,12 @@ function boots2(b, u, m, r, h) {
     leg.add(c);
   }
 }
-function torso(b, u, hipM, midM, chestM, { hip = 0.16, mid = 0.16, chest = 0.17 } = {}) {
+function torso(b, u, hipM, midM, chestM, { hip = 0.16, mid = 0.16, chest = 0.17, neck = SKIN('#e3ad8a') } = {}) {
   seg(b.Hips, b.Spine, hip, hipM, u, { sz: 0.8 });
   seg(b.Spine, b.Spine1, mid, midM, u, { sz: 0.8 });
   seg(b.Spine1, b.Spine2, mid * 1.02, midM === chestM ? chestM : midM, u, { sz: 0.8 });
   seg(b.Spine2, b.Neck, chest, chestM, u, { sz: 0.75 });
-  seg(b.Neck, b.Head, 0.055, M('#e3ad8a'), u);
+  seg(b.Neck, b.Head, 0.055, neck, u);
 }
 function arms(b, u, shoulderM, upperM, foreM, handM, { up = 0.055, fore = 0.045 } = {}) {
   for (const s of ['Left', 'Right']) {
@@ -224,7 +357,7 @@ function arms(b, u, shoulderM, upperM, foreM, handM, { up = 0.055, fore = 0.045 
   }
 }
 
-const BUILDERS = { bubba: buildBubba, cletus: buildCletus, darlene: buildDarlene, chad: buildChad, karen: buildKaren, golfdad: buildGolfDad };
+const BUILDERS = { bubba: buildBubba, cletus: buildCletus, darlene: buildDarlene, hank: buildHank, jimbo: buildJimbo, chad: buildChad, karen: buildKaren, golfdad: buildGolfDad, brad: buildBrad, todd: buildTodd };
 export function buildCaricature(bones, unit, archetype, teamColor) {
   (BUILDERS[archetype] || buildChad)(bones, unit, teamColor);
 }

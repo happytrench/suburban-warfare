@@ -6,6 +6,7 @@ import { getMap } from '../shared/map.js';
 import { buildWorld, buildSky, setQuality } from '../js/world.js';
 import { loadRig, buildRiggedCharacter, animateRig } from '../js/rig.js';
 import { updateMixamo } from '../js/mixamo.js';
+import { charTexturesReady } from '../js/caricatures.js';
 const q = new URLSearchParams(location.search);
 setQuality('high');
 const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(innerWidth, innerHeight); r.toneMapping = THREE.ACESFilmicToneMapping; r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
@@ -13,17 +14,16 @@ const map = getMap('culdesac'); const scene = new THREE.Scene(); scene.fog = new
 scene.add(new THREE.HemisphereLight('#dff1ff', map.theme.hemiGround, 1.5)); const sun = new THREE.DirectionalLight('#ffe2b0', 3); sun.position.set(20, 30, 40); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20 }); scene.add(sun);
 scene.add(buildWorld(map));
 await loadRig('../vendor/models/');
-const defs = [
-  { id: 0, outfit: 'country', color: '#c2410c', x: -4.0, speed: 0 },
-  { id: 1, outfit: 'country', color: '#c2410c', x: -2.4, speed: 0 },
-  { id: 2, outfit: 'country', color: '#c2410c', x: -0.8, speed: 0 },
-  { id: 0, outfit: 'suburban', color: '#3b82f6', x: 0.8, speed: 0 },
-  { id: 1, outfit: 'suburban', color: '#3b82f6', x: 2.4, speed: 0 },
-  { id: 2, outfit: 'suburban', color: '#3b82f6', x: 4.0, speed: 0 },
-];
-const chars = defs.map((d) => { const c = buildRiggedCharacter(d); c.position.set(d.x, 0, 24); c.rotation.y = Math.PI + (Number(q.get('turn')) || 0); scene.add(c); return { c, d }; });
+const only = q.get('only');
+const defs = [];
+for (let i = 0; i < 5; i++) defs.push({ id: i, outfit: 'country', color: '#c2410c', speed: 0 });
+for (let i = 0; i < 5; i++) defs.push({ id: i, outfit: 'suburban', color: '#3b82f6', speed: 0 });
+const pick = only ? defs.filter((d, i) => only.split(',').includes(String(i))) : defs;
+pick.forEach((d, i) => { d.x = (i - (pick.length - 1) / 2) * 1.5; });
+const chars = pick.map((d) => { const c = buildRiggedCharacter(d); c.position.set(d.x, 0, 24); c.rotation.y = Math.PI + (Number(q.get('turn')) || 0); scene.add(c); return { c, d }; });
 const t = Number(q.get('t') || 0.4);
 for (let i = 0; i < 30; i++) for (const { c, d } of chars) { const rg = c.userData.rig; if (rg.mixamo) updateMixamo(rg, t / 30, { f: d.speed, r: 0 }, true, Number(q.get('pitch') || 0), false); else animateRig(rg, d.speed, t / 20, Number(q.get('pitch') || 0), true); }
+await charTexturesReady();
 const cam = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 500);
 const cp = (q.get('cam') || '0,1.3,30.2').split(',').map(Number); cam.position.set(...cp); cam.lookAt(0, 1.0, 24);
 r.render(scene, cam); document.title = 'done'; window.__done = true;

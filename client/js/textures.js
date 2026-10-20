@@ -170,6 +170,20 @@ export const flannel = (base = '#9b2222', rep = [1, 1]) => make('flannel' + base
   noise(g, s, ['rgba(0,0,0,.08)'], 200, 1.5, 2);
 }, rep);
 
+// Buffalo-check flannel at cloth resolution (woven: the weave detail comes from the jersey normal map).
+export const buffalo = (a = '#a3191c', b = '#161314') => make('buffalo' + a + b, 512, (g, s) => {
+  const c = s / 4;
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) {
+    const ax = x % 2, ay = y % 2;
+    g.fillStyle = ax && ay ? b : (ax || ay) ? '#5a1416' : a;
+    g.fillRect(x * c, y * c, c, c);
+  }
+  g.globalAlpha = 0.18; // twill hatching where threads cross
+  for (let i = -s; i < s; i += 4) { g.strokeStyle = i % 8 ? '#000' : '#fff'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(i, 0); g.lineTo(i + s, s); g.stroke(); }
+  g.globalAlpha = 1;
+  noise(g, s, ['rgba(0,0,0,.12)', 'rgba(255,255,255,.07)'], 6000, 1.2, 9);
+});
+
 export const knit = (base = '#3b82f6') => make('knit' + base, 64, (g, s) => {
   g.fillStyle = base; g.fillRect(0, 0, s, s);
   for (let y = 0; y < s; y += 3) { g.fillStyle = 'rgba(0,0,0,.07)'; g.fillRect(0, y, s, 1); }
@@ -177,32 +191,74 @@ export const knit = (base = '#3b82f6') => make('knit' + base, 64, (g, s) => {
 });
 
 // Painted face decal (transparent), console-era style.
-export const face = (kind = 'clean', skin = '#e0ac69') => make('face' + kind + skin, 128, (g, s) => {
+// Painted face (transparent decal over the skin). kind: '+'-joined tokens —
+// grin, beard, stubble, mustache, handlebar, goatee, old, iris colour (blue|green|brown).
+export const face = (kind = 'clean', skin = '#e0ac69') => make('face2' + kind + skin, 512, (g, s) => {
   g.clearRect(0, 0, s, s);
-  if (kind === 'beard') {
-    g.fillStyle = 'rgba(70,45,25,.95)';
-    g.beginPath(); g.ellipse(64, 100, 44, 30, 0, 0, Math.PI); g.fill();
-    g.beginPath(); g.ellipse(64, 84, 26, 8, 0, 0, Math.PI * 2); g.fill();
-  } else {
-    g.fillStyle = 'rgba(0,0,0,.08)'; g.beginPath(); g.ellipse(64, 98, 30, 14, 0, 0, Math.PI); g.fill(); // jaw shading
-  }
+  const K = new Set(kind.split('+'));
+  const k = s / 128; g.save(); g.scale(k, k);
+  const rand = rng(kind.length * 31 + 7);
+  const soft = (x, y, rx, ry, c0, c1 = 'rgba(0,0,0,0)') => { const gr = g.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry)); gr.addColorStop(0, c0); gr.addColorStop(1, c1); g.save(); g.translate(x, y); g.scale(rx / Math.max(rx, ry), ry / Math.max(rx, ry)); g.translate(-x, -y); g.fillStyle = gr; g.beginPath(); g.arc(x, y, Math.max(rx, ry), 0, Math.PI * 2); g.fill(); g.restore(); };
+  // shading: eye sockets, cheeks, nose sides, under-lip, jaw
+  for (const x of [44, 84]) { soft(x, 55, 16, 11, 'rgba(90,40,30,.22)'); soft(x + (x < 64 ? -6 : 6), 76, 15, 10, 'rgba(210,70,60,.16)'); }
+  soft(58, 68, 4, 12, 'rgba(80,35,25,.18)'); soft(70, 68, 4, 12, 'rgba(80,35,25,.18)');
+  soft(64, 66, 3, 11, 'rgba(255,255,255,.18)');                                   // nose bridge highlight
+  soft(64, 98, 12, 5, 'rgba(70,30,25,.18)'); soft(64, 110, 34, 14, 'rgba(60,30,20,.10)');
+  if (K.has('old')) { g.strokeStyle = 'rgba(80,40,30,.28)'; g.lineWidth = 0.8; for (const y of [34, 37, 40]) { g.beginPath(); g.moveTo(48, y); g.quadraticCurveTo(64, y - 2, 80, y); g.stroke(); } for (const x of [30, 98]) { for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(x, 52 + i * 3); g.lineTo(x + (x < 64 ? -5 : 5), 50 + i * 4); g.stroke(); } } }
+  // nasolabial folds
+  g.strokeStyle = 'rgba(90,40,30,.22)'; g.lineWidth = 1.4;
+  for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(64 + sx * 9, 74); g.quadraticCurveTo(64 + sx * 15, 84, 64 + sx * 13, 94); g.stroke(); }
+  // eyes
+  const iris = K.has('green') ? ['#5f7a4a', '#2f4024'] : K.has('brown') ? ['#6b4426', '#2b1a0e'] : ['#6f95b8', '#2d4a66'];
   for (const x of [44, 84]) {
-    g.fillStyle = '#f5f2ea'; g.beginPath(); g.ellipse(x, 56, 9, 5, 0, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#3b2a1a'; g.beginPath(); g.arc(x, 56, 4, 0, Math.PI * 2); g.fill();
-    g.fillStyle = 'rgba(40,25,15,.9)'; g.fillRect(x - 11, 42, 22, 4); // brows
+    g.save(); g.beginPath(); g.ellipse(x, 56, 9, 4.6, 0, 0, Math.PI * 2); g.clip();
+    g.fillStyle = '#efe9e1'; g.fillRect(x - 10, 50, 20, 12);
+    soft(x, 52, 10, 5, 'rgba(120,80,70,.35)');                                    // lid shadow on the white
+    const ig = g.createRadialGradient(x, 56, 0.5, x, 56, 4.4); ig.addColorStop(0, iris[0]); ig.addColorStop(0.75, iris[1]); ig.addColorStop(1, '#141414');
+    g.fillStyle = ig; g.beginPath(); g.arc(x, 56, 4.4, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#0b0b0b'; g.beginPath(); g.arc(x, 56, 1.7, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(x + 1.4, 54.6, 0.9, 0, Math.PI * 2); g.fill();
+    g.restore();
+    g.strokeStyle = 'rgba(30,18,12,.9)'; g.lineWidth = 1.3; g.beginPath(); g.ellipse(x, 56, 9, 4.6, 0, Math.PI, Math.PI * 2); g.stroke();   // upper lash line
+    g.strokeStyle = 'rgba(90,50,40,.35)'; g.lineWidth = 0.7; g.beginPath(); g.ellipse(x, 56, 8.5, 4.2, 0, 0.15, Math.PI - 0.15); g.stroke(); // lower lid
+    g.strokeStyle = 'rgba(90,45,35,.35)'; g.lineWidth = 0.8; g.beginPath(); g.ellipse(x, 54, 9.5, 5.5, 0, Math.PI + 0.3, Math.PI * 2 - 0.3); g.stroke(); // crease
+    // brows: individual hair strokes
+    g.strokeStyle = K.has('old') ? 'rgba(150,145,140,.9)' : 'rgba(60,38,22,.85)'; g.lineWidth = 0.7;
+    for (let i = 0; i < 26; i++) { const t = i / 25, bx = x - 11 + t * 22, by = 45 - Math.sin(t * Math.PI) * 2.2 + (x < 64 ? t : 1 - t) * 1.5; g.beginPath(); g.moveTo(bx, by + 1.6); g.lineTo(bx + 2.2 * (x < 64 ? 1 : -1) * (t - 0.3), by - 0.8 + rand()); g.stroke(); }
   }
-  g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 3;
-  g.beginPath(); g.moveTo(64, 58); g.lineTo(60, 76); g.lineTo(68, 77); g.stroke(); // nose
-  if (kind === 'grin') { // blinding country-club smile
-    g.fillStyle = '#7f1d1d'; g.beginPath(); g.moveTo(46, 86); g.quadraticCurveTo(64, 104, 82, 86); g.closePath(); g.fill();
-    g.fillStyle = '#ffffff'; g.fillRect(48, 86, 32, 5);
-  } else {
-    g.strokeStyle = 'rgba(110,40,40,.85)'; g.lineWidth = 3;
-    g.beginPath(); g.moveTo(52, 90); g.quadraticCurveTo(64, 94, 76, 90); g.stroke(); // mouth
+  // nostrils + nose tip
+  for (const sx of [-1, 1]) soft(64 + sx * 4, 77, 2.3, 1.4, 'rgba(60,20,15,.55)');
+  soft(64, 74, 6, 4, 'rgba(255,230,220,.15)');
+  // facial hair
+  const stubble = (y0, y1, a) => { for (let i = 0; i < 2600; i++) { const x = 30 + rand() * 68, y = y0 + rand() * (y1 - y0); const dx = (x - 64) / 36, dy = (y - 96) / 26; if (dx * dx + dy * dy > 1 || (y < 84 && Math.abs(x - 64) < 14)) continue; g.fillStyle = `rgba(55,38,26,${a * (0.5 + rand() * 0.5)})`; g.fillRect(x, y, 0.6, 0.6); } };
+  if (K.has('stubble')) stubble(78, 124, 0.55);
+  const hairC = K.has('old') ? 'rgba(150,145,140,' : 'rgba(80,52,30,';
+  const strokes = (path, n, len, a = 0.85) => { g.strokeStyle = hairC + a + ')'; g.lineWidth = 0.8; for (let i = 0; i < n; i++) { const [x, y, ang] = path(rand()); g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len); g.stroke(); } };
+  if (K.has('beard')) {
+    g.fillStyle = hairC + '.92)'; g.beginPath(); g.ellipse(64, 100, 44, 30, 0, 0, Math.PI); g.fill();
+    strokes((t) => [64 + (t - 0.5) * 86, 100 + rand() * 26, Math.PI / 2 + (t - 0.5) * 0.6], 900, 6);
   }
+  if (K.has('mustache') || K.has('beard') || K.has('handlebar')) {
+    g.fillStyle = hairC + '.95)'; g.beginPath(); g.ellipse(64, 85, 15, 4.5, 0, 0, Math.PI * 2); g.fill();
+    strokes((t) => [64 + (t - 0.5) * 30, 83 + rand() * 4, Math.PI / 2 + (t - 0.5) * 1.6], 300, 4);
+  }
+  if (K.has('handlebar')) { g.strokeStyle = hairC + '.95)'; g.lineWidth = 3.4; g.lineCap = 'round'; for (const sx of [-1, 1]) { g.beginPath(); g.moveTo(64 + sx * 12, 86); g.quadraticCurveTo(64 + sx * 20, 92, 64 + sx * 18, 106); g.stroke(); } }
+  if (K.has('goatee')) { g.fillStyle = hairC + '.92)'; g.beginPath(); g.ellipse(64, 104, 9, 9, 0, 0, Math.PI * 2); g.fill(); strokes((t) => [55 + t * 18, 98 + rand() * 12, Math.PI / 2], 200, 4); }
+  // mouth
+  if (K.has('grin')) {
+    g.fillStyle = '#5a1414'; g.beginPath(); g.moveTo(47, 89); g.quadraticCurveTo(64, 106, 81, 89); g.quadraticCurveTo(64, 93, 47, 89); g.fill();
+    g.fillStyle = '#fbfaf6'; g.beginPath(); g.moveTo(49, 90); g.quadraticCurveTo(64, 95, 79, 90); g.quadraticCurveTo(64, 98, 49, 90); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,.15)'; g.lineWidth = 0.4; for (let x = 52; x < 78; x += 4) { g.beginPath(); g.moveTo(x, 90.5); g.lineTo(x, 95); g.stroke(); }
+    g.strokeStyle = 'rgba(150,70,60,.8)'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(46, 88.5); g.quadraticCurveTo(64, 107, 82, 88.5); g.stroke();
+  } else if (!K.has('beard') || K.has('mustache')) {
+    const lg = g.createLinearGradient(0, 87, 0, 97); lg.addColorStop(0, '#b0645a'); lg.addColorStop(0.45, '#8e4a42'); lg.addColorStop(0.55, '#5e2c27'); lg.addColorStop(1, '#b77066');
+    g.fillStyle = lg; g.beginPath(); g.moveTo(52, 91); g.quadraticCurveTo(58, 87, 64, 89); g.quadraticCurveTo(70, 87, 76, 91); g.quadraticCurveTo(64, 98, 52, 91); g.fill();
+    g.strokeStyle = 'rgba(60,25,20,.8)'; g.lineWidth = 0.9; g.beginPath(); g.moveTo(52, 91); g.quadraticCurveTo(64, 93, 76, 91); g.stroke();
+    soft(64, 94.5, 5, 1.4, 'rgba(255,240,235,.25)');
+  }
+  g.restore();
   void skin;
 });
-
 export const dirt = (rep = [20, 20]) => make('dirt', 512, (g, s) => {
   g.fillStyle = '#9a7449'; g.fillRect(0, 0, s, s);
   noise(g, s, ['#8a6640', '#a98256', '#7b5a37', '#b48d60', '#6e5032'], 16000, 2.6, 11);
