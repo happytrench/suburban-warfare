@@ -91,15 +91,22 @@ void ASWCharacter::BeginPlay()
 	Super::BeginPlay();
 	if (HasAuthority())
 	{
-		SpawnProtectUntil = GetWorld()->GetTimeSeconds() + SpawnProtectSec;
+		SpawnProtectUntil = (float)GetWorld()->GetTimeSeconds() + SpawnProtectSec;
 	}
-	// team colour on the placeholder body
-	if (const ASWPlayerState* PS = GetPlayerState<ASWPlayerState>())
-	{
-		const FLinearColor C = PS->Team == 2 ? FLinearColor(0.76f, 0.25f, 0.05f) : PS->Team == 1 ? FLinearColor(0.23f, 0.51f, 0.96f) : FLinearColor(0.8f, 0.8f, 0.75f);
-		if (UMaterialInstanceDynamic* M = BodyMesh->CreateAndSetMaterialInstanceDynamic(0)) M->SetVectorParameterValue(TEXT("Color"), C);
-	}
+	ApplyTeamColor();
 	ApplyWeaponVisual();
+}
+
+void ASWCharacter::PossessedBy(AController* NewController) { Super::PossessedBy(NewController); ApplyTeamColor(); }
+void ASWCharacter::OnRep_PlayerState() { Super::OnRep_PlayerState(); ApplyTeamColor(); }
+
+void ASWCharacter::ApplyTeamColor()
+{
+	// team colour on the placeholder body: blue HOA, orange Backroad Boys, beige in free-for-all
+	const ASWPlayerState* PS = GetPlayerState<ASWPlayerState>();
+	if (!PS) return;
+	const FLinearColor C = PS->Team == 2 ? FLinearColor(0.76f, 0.25f, 0.05f) : PS->Team == 1 ? FLinearColor(0.23f, 0.51f, 0.96f) : FLinearColor(0.8f, 0.8f, 0.75f);
+	if (UMaterialInstanceDynamic* M = BodyMesh->CreateAndSetMaterialInstanceDynamic(0)) M->SetVectorParameterValue(TEXT("Color"), C);
 }
 
 void ASWCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -171,7 +178,7 @@ void ASWCharacter::SelectWeapon(int32 Index)
 	WeaponIndex = (uint8)Index;
 	bReloading = false;
 	GetWorldTimerManager().ClearTimer(ReloadTimer);
-	LocalNextFire = GetWorld()->GetTimeSeconds() + 0.25f;
+	LocalNextFire = (float)GetWorld()->GetTimeSeconds() + 0.25f;
 	ApplyWeaponVisual();
 	ServerSetWeapon((uint8)Index);
 }
@@ -184,7 +191,7 @@ void ASWCharacter::ServerSetWeapon_Implementation(uint8 Index)
 	WeaponIndex = Index;
 	bReloading = false;
 	GetWorldTimerManager().ClearTimer(ReloadTimer);
-	ServerNextFire = FMath::Max(ServerNextFire, GetWorld()->GetTimeSeconds() + 0.2f);
+	ServerNextFire = FMath::Max(ServerNextFire, (float)GetWorld()->GetTimeSeconds() + 0.2f);
 	ApplyWeaponVisual();
 }
 
@@ -224,7 +231,7 @@ float ASWCharacter::CurrentSpread() const
 
 bool ASWCharacter::IsSpawnProtected() const
 {
-	return GetWorld() && GetWorld()->GetTimeSeconds() < SpawnProtectUntil;
+	return GetWorld() && (float)GetWorld()->GetTimeSeconds() < SpawnProtectUntil;
 }
 
 void ASWCharacter::TryFire()
@@ -232,7 +239,7 @@ void ASWCharacter::TryFire()
 	if (bDead || bReloading || !IsLocallyControlled()) return;
 	const FSWWeapon& W = SWWeapons::Get(WeaponIndex);
 	if (!W.bAuto && bFiredThisPress) return;
-	const float Now = GetWorld()->GetTimeSeconds();
+	const float Now = (float)GetWorld()->GetTimeSeconds();
 	if (Now < LocalNextFire) return;
 	if (!Ammo.IsValidIndex(WeaponIndex) || Ammo[WeaponIndex] <= 0) { bFiredThisPress = true; ReloadPressed(); return; }
 	bFiredThisPress = true;
@@ -269,7 +276,7 @@ void ASWCharacter::ServerFire_Implementation(FVector_NetQuantize Origin, FVector
 	if (bDead || bReloading) return;
 	const FSWWeapon& W = SWWeapons::Get(WeaponIndex);
 	UWorld* World = GetWorld();
-	const float Now = World->GetTimeSeconds();
+	const float Now = (float)World->GetTimeSeconds();
 	if (Now < ServerNextFire - 0.03f) return;                       // fire-rate cap (small jitter allowance)
 	if (!Ammo.IsValidIndex(WeaponIndex) || Ammo[WeaponIndex] <= 0) return;
 	// the shot must come from roughly where we are (no shooting from across the map)
@@ -339,14 +346,14 @@ void ASWCharacter::ReceiveHit(float Damage, ASWCharacter* Shooter, uint8 Weapon,
 
 void ASWCharacter::ClientHitConfirm_Implementation(bool bHead, bool bKill)
 {
-	HitMarkerTime = GetWorld()->GetTimeSeconds();
+	HitMarkerTime = (float)GetWorld()->GetTimeSeconds();
 	bLastHitHead = bHead;
 	bLastHitKill = bKill;
 }
 
 void ASWCharacter::ClientTookDamage_Implementation()
 {
-	DamageFlashTime = GetWorld()->GetTimeSeconds();
+	DamageFlashTime = (float)GetWorld()->GetTimeSeconds();
 }
 
 void ASWCharacter::OnRep_Health() {}

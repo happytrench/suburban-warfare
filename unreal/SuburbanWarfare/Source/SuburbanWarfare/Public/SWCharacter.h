@@ -3,6 +3,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Engine/NetSerialization.h"
 #include "SWCharacter.generated.h"
 
 class UCameraComponent;
@@ -21,6 +22,9 @@ public:
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 	virtual void BeginPlay() override;
+	virtual void PossessedBy(AController* NewController) override;
+	virtual void OnRep_PlayerState() override;
+	void ApplyTeamColor();
 
 	// ---- components
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "SW") UCameraComponent* Camera;
