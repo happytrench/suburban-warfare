@@ -64,7 +64,9 @@ export function attachHuman(model, a) {
   const root = byName.Hips.parent;
   const meshes = a.geos.map((g, i) => {
     const m = new THREE.SkinnedMesh(g, a.mats[i]);
-    m.castShadow = true; m.frustumCulled = false;
+    m.castShadow = true;
+    // cull characters behind the camera: fixed sphere around the body (bind space is centimetres)
+    m.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 100, 0), 160); m.frustumCulled = true;
     root.add(m); m.updateMatrixWorld(true);
     m.bind(skel, m.matrixWorld);
     return m;

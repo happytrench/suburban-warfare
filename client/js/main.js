@@ -621,10 +621,27 @@ function updateCamera(dt) {
     ch[0].style.transform = `translateY(${-gap}px)`; ch[1].style.transform = `translateY(${gap}px)`;
     ch[2].style.transform = `translateX(${-gap}px)`; ch[3].style.transform = `translateX(${gap}px)`;
   } else {
-    // death cam: drift up and look down at where you fell
-    const t = Math.min(1, (performance.now() - me.deathAt) / 1200);
-    camera.position.set(me.pos.x, me.pos.y + 1.6 + t * 3.5, me.pos.z + t * 3);
-    camera.lookAt(me.pos.x, me.pos.y + 0.5, me.pos.z);
+    // kill cam: after a beat, swing over to the killer and slowly orbit them
+    const el = performance.now() - me.deathAt;
+    const kr = me.killerId != null && me.killerId !== S.myId ? remotes.get(me.killerId) : null;
+    if (kr && el > 500) {
+      const k = Math.min(1, (el - 500) / 600), e = k * k * (3 - 2 * k);
+      const kp = kr.obj.position, ang = (kr.obj.rotation.y || 0) + Math.PI * 0.75 + el / 4000;
+      const tx = kp.x + Math.sin(ang) * 3.2, ty = kp.y + 2.1, tz = kp.z + Math.cos(ang) * 3.2;
+      const fx = me.pos.x, fy = me.pos.y + 4.5, fz = me.pos.z + 3;
+      camera.position.set(fx + (tx - fx) * e, fy + (ty - fy) * e, fz + (tz - fz) * e);
+      camera.lookAt(kp.x, kp.y + 1.4, kp.z);
+      const kc = $('killcam');
+      if (kc.classList.contains('hidden')) {
+        const ki = playerInfo(me.killerId);
+        kc.innerHTML = `<span class="kc-tag">KILLCAM</span> <b>${esc(ki ? ki.name : 'Neighbor')}</b>`;
+        kc.classList.remove('hidden');
+      }
+    } else {
+      const t = Math.min(1, el / 1200);
+      camera.position.set(me.pos.x, me.pos.y + 1.6 + t * 3.5, me.pos.z + t * 3);
+      camera.lookAt(me.pos.x, me.pos.y + 0.5, me.pos.z);
+    }
   }
 }
 
@@ -1008,7 +1025,7 @@ net.on('room', (m) => {
     }
   } else if (m.phase === 'countdown' || m.phase === 'playing') {
     if (!(prev === 'countdown' || prev === 'playing') || ['lobby', 'menu', 'end', 'conn', 'loading'].includes(screen)) {
-      $('dead').classList.add('hidden');
+      $('dead').classList.add('hidden'); $('killcam').classList.add('hidden');
       if (locked()) hideScreens(); else show('click-to-play');
     }
   }
@@ -1024,7 +1041,7 @@ net.on('spawn', (m) => {
     me.hp = 100;
     me.reloadUntil = 0;
     me.ammo = fullAmmo();
-    $('dead').classList.add('hidden');
+    $('dead').classList.add('hidden'); $('killcam').classList.add('hidden');
     updateHudHp(); updateHudWeapon();
   } else {
     const r = ensureRemote(m.id);
@@ -1109,6 +1126,7 @@ function die(killerId) {
   mouseDown = false;
   me.killerId = killerId;
   $('dead').classList.remove('hidden');
+  $('killcam').classList.add('hidden');
 }
 
 net.on('kill', (m) => {
@@ -1163,7 +1181,7 @@ net.on('end', (m) => {
   $('btn-to-lobby').classList.toggle('hidden', !isHost);
   $('end-wait').classList.toggle('hidden', isHost);
   me.alive = false;
-  $('dead').classList.add('hidden');
+  $('dead').classList.add('hidden'); $('killcam').classList.add('hidden');
   sfx.ding();
   show('end');
 });

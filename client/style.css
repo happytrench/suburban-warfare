@@ -286,3 +286,6 @@ kbd { display: inline-block; border: 1px solid rgba(255,255,255,.35); border-rad
 #lobby .btn.ghost { color: #e5e7eb; }
 .cod-item span { white-space: nowrap; }
 .cod-hints kbd { background: transparent; }
+
+#killcam { position: absolute; top: 70px; left: 50%; transform: translateX(-50%); background: rgba(10,12,14,.78); border-top: 3px solid #ef4444; color: #fff; font: 700 22px 'Barlow Condensed', sans-serif; letter-spacing: 2px; padding: 8px 22px; z-index: 6; }
+#killcam .kc-tag { color: #ef4444; margin-right: 8px; }

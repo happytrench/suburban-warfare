@@ -1,6 +1,7 @@
 // Vehicles built from bevelled side profiles with wheel arches, tinted glass, chrome trim and
 // clear-coated paint (High quality). Front = +z, origin on the ground at the centre.
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const cache = {};
 const M = {
@@ -117,12 +118,34 @@ function golfcart(color, L = 2.4, W = 1.3) {
   return g;
 }
 
+// one draw call per material instead of ~40 small meshes per car
+function mergeByMaterial(g) {
+  g.updateMatrixWorld(true);
+  const groups = new Map();
+  g.traverse((o) => {
+    if (!o.isMesh) return;
+    let geo = o.geometry.clone().applyMatrix4(o.matrixWorld);
+    if (geo.index) geo = geo.toNonIndexed();
+    for (const k of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(k)) geo.deleteAttribute(k);
+    if (!geo.attributes.uv) geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 2), 2));
+    if (!groups.has(o.material)) groups.set(o.material, []);
+    groups.get(o.material).push(geo);
+  });
+  const out = new THREE.Group();
+  for (const [m, list] of groups) {
+    const merged = mergeGeometries(list, false);
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, m); mesh.castShadow = true; mesh.receiveShadow = true; out.add(mesh);
+  }
+  return out;
+}
+
 /** Vehicle for a map box (kind suv|pickup|truck|golfcart, w/d footprint, facing 'x'|'z'). */
 export function buildCar(b) {
   const alongX = b.facing === 'x' || (b.facing == null && b.w > b.d);
   const L = alongX ? b.w : b.d, W = Math.min(alongX ? b.d : b.w, 2.15) - 0.1;
   const c = b.color || '#e5e7eb';
-  const car = b.kind === 'golfcart' ? golfcart(c, L, W) : (b.kind === 'pickup' || b.kind === 'truck') ? pickup(c, L, W) : suv(c, L, W);
+  const car = mergeByMaterial(b.kind === 'golfcart' ? golfcart(c, L, W) : (b.kind === 'pickup' || b.kind === 'truck') ? pickup(c, L, W) : suv(c, L, W));
   car.position.set(b.x, b.y || 0, b.z);
   const flip = Math.abs(Math.round(b.x * 3 + b.z * 7)) % 2 ? Math.PI : 0;
   car.rotation.y = (alongX ? Math.PI / 2 : 0) + flip + (b.ry || 0);
