@@ -8,6 +8,8 @@ import { MAPS, getMap } from '../shared/map.js';
 import { stepPlayer, raycastMap, rayPlayer } from '../shared/physics.js';
 import { buildWorld, buildSky, setQuality } from './world.js';
 import { buildCharacter, nameTag, playerColor, buildGunModel, muzzleOffset } from './characters.js';
+import { loadGuns } from './guns.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Net } from './net.js';
 import { Sfx } from './audio.js';
 import { loadRig, rigReady, buildRiggedCharacter, animateRig, humanReady } from './rig.js';
@@ -1234,6 +1236,10 @@ async function boot() {
     if (document.fonts && document.fonts.ready) await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]);
     applyRenderSettings();
     resize();
+    await Promise.race([loadGuns(), new Promise((r) => setTimeout(r, 6000))]);
+    // image-based lighting so metal, skin and cloth pick up soft reflections
+    const env = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+    vmScene.environment = env; scene.environment = env; scene.environmentIntensity = 0.35;
     buildViewmodels();
     await step(25, 'Hiring neighbors (loading characters)…');
     await Promise.race([loadRig(), new Promise((r) => setTimeout(r, 8000))]);

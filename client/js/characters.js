@@ -1,6 +1,7 @@
 // Low-poly character models for both factions, plus first-person weapon models.
 import * as THREE from 'three';
 import * as TX from './textures.js';
+import { realGun } from './guns.js';
 
 const M = (color, extra = {}) => new THREE.MeshLambertMaterial({ color, ...extra });
 const box = (w, h, d, m) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
@@ -208,6 +209,7 @@ export function nameTag(text, color) {
 
 // Weapon models (forward = +z). Used both third-person and as viewmodels.
 export function buildGunModel(kind, quality = 'high') {
+  if (quality !== 'low') { const real = realGun(kind); if (real) return real; }
   const g = new THREE.Group();
   const M = (color, extra = {}) => (quality === 'low' ? new THREE.MeshLambertMaterial({ color }) : new THREE.MeshStandardMaterial({ color, roughness: 0.5, metalness: 0.2, ...extra }));
   if (kind === 'deer') {
@@ -245,6 +247,6 @@ export function buildGunModel(kind, quality = 'high') {
 }
 
 export function muzzleOffset(kind) {
-  if (kind === 'deer') return new THREE.Vector3(0, 0.04, 0.9);
-  return kind === 'shotgun' ? new THREE.Vector3(0, 0.03, 0.8) : new THREE.Vector3(0, 0.02, 0.62);
+  if (kind === 'deer') return new THREE.Vector3(0, 0.05, 0.92);
+  return kind === 'shotgun' ? new THREE.Vector3(0, 0.022, 0.73) : new THREE.Vector3(0, 0.033, 0.69);
 }
