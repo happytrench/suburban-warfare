@@ -194,13 +194,15 @@ export function buildRiggedCharacter({ id, color, outfit }) {
 
   const archetype = pickArchetype(outfit, id);
   let meshesForFlash = null, pendingHuman = null, handRest = null, headRest = null;
+  const allBones = {};
   if (skinned) {
     addFactionGear(bones, o, color, unit);
   } else if (clips.back && humans.has(archetype)) {
     const h = humans.get(archetype);
     meshesForFlash = attachHuman(model, h);
     model.updateMatrixWorld(true);
-    handRest = measureHands(bones);
+    model.traverse((o) => { if (o.isBone) allBones[o.name.replace(/^mixamorig\d*[:_]?/, '')] = o; });
+    handRest = measureHands(allBones);
     headRest = bones.Head.getWorldQuaternion(new THREE.Quaternion()); // model space == holder space at build time (no parent yet)
     buildHumanGear(bones, bones.Hips.getWorldScale(new THREE.Vector3()).x, archetype, color, h.h.metrics);
   } else if (clips.back) {
@@ -316,7 +318,7 @@ export function buildRiggedCharacter({ id, color, outfit }) {
     gun.position.set(shoulder.x + ox, shoulder.y + oy * cp + oz * sp, shoulder.z + oz * cp - oy * sp);
     gun.rotation.set(-pitch, 0, 0);
     const active = [rifle, shotgun, deer].find((g) => g.visible) || rifle;
-    holdGun(bones, handRest, active);
+    holdGun(allBones, handRest, active);
     // head looks down the sights instead of at the floor
     holder.getWorldQuaternion(hq);
     pq.setFromAxisAngle(X, -pitch * 0.8);
