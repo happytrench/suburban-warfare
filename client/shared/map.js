@@ -113,7 +113,16 @@ function buildCuldesac() {
     add('fence', X(-30.5), 2, 9, 0.2, 1.2, { color: '#9ca3af' });
 
     // --- W / E house
-    add('house', X(-32), 14, 14, 11, 3.4, { facing: face, ranch: true, ...c2, label: s < 0 ? 'THE OKAFORS' : 'THE LINDQVISTS' });
+    // enterable ranch home: front door to the street, back door to the yard, bedroom / living + kitchen
+    const back = s < 0 ? 'w' : 'e';
+    shell(X(-32), 14, 14, 11, 3.4, { wall: c2.wall, tex: 'siding', roof: c2.roof, roofH: 2.0, floor: 'wood', label: s < 0 ? 'THE OKAFORS' : 'THE LINDQVISTS', facing: face,
+      open: { [face]: [[-3.2, 'window'], [1.6, 'door'], [4.2, 'window']], [back]: [[-2.4, 'door'], [2.6, 'window']], n: [[-3.5, 'window'], [3, 'window']], s: [[-3, 'window'], [3.5, 'window']] } });
+    for (const sx of [-1, 1]) add('wallseg', X(-32 + sx * 3.95), 13.2, 6.1, 0.2, 3.4, { wall: '#ede6d8', tex: 'siding' });   // hallway wall with a gap
+    add('couch', X(-34), 17.6, 2.4, 1.0, 0.9);
+    add('table', X(-28.6), 17.2, 1.4, 1.4, 0.8);
+    add('counter', X(-28.8), 19.0, 4.2, 0.7, 0.95);
+    add('bed', X(-35.2), 10.2, 2.0, 2.4, 0.6);
+    add('shelf', X(-28.2), 9.0, 2.2, 0.5, 1.9);
     add('garage', X(-30), 25.5, 10, 7, 3.3, { facing: face, wall: c2.wall, roof: c2.roof });
     dec('driveway', X(-16), 25.5, { w: 18, d: 6 });
     add('suv', X(-17), 25.4, 4.9, 2.3, 1.9, { color: suvColors[si * 2 + 1], facing: 'x' });
@@ -256,7 +265,7 @@ function helpers(boxes = [], decor = []) {
       }
       piece(cur, g.len / 2, 0, h);
     }
-    add('shellroof', x, z, w, d, 0.25, { roof: o.roof || '#3f3f46', roofH: o.roofH ?? 2, metalRoof: !!o.metalRoof, label: o.label, facing: o.facing || 'n' }, h);
+    add('shellroof', x, z, w, d, 0.25, { roof: o.roof || '#3f3f46', roofH: o.roofH ?? 2, metalRoof: !!o.metalRoof, label: o.label, facing: o.facing || 'n', lit: !!o.floor && o.floor !== 'dirt' }, h);
     if (o.floor) dec('floor', x, z, { w: w - 0.6, d: d - 0.6, tex: o.floor });
   };
   // A row of utility poles with sagging wires (poles are solid, wires are scenery).

@@ -12,6 +12,14 @@ export const PROP_FOR = {
   crate: { m: 'wooden_crate_01' },
   chair: { m: 'plastic_monobloc_chair_01' },
   generator: { m: 'portable_generator', long: 'x' },
+  // furniture in the enterable buildings
+  couch: { m: 'sofa_02', long: 'x' },
+  bed: { m: 'vintage_day_bed', long: 'x' },
+  table: { m: 'WoodenTable_02', long: 'x' },
+  shelf: { m: 'steel_frame_shelves_01', long: 'x', tile: true },
+  workbench: { m: 'WoodenTable_03', long: 'x', tile: true },
+  counter: { m: 'painted_wooden_cabinet', long: 'x', tile: true },
+  ac: { m: 'exterior_aircon_unit', long: 'x' },
 };
 const models = {};
 export function loadProps() {
@@ -30,6 +38,22 @@ export const propReady = (kind) => !!(PROP_FOR[kind] && models[PROP_FOR[kind].m]
 /** A placed copy of the prop for map box b (x/z centre, w/d footprint, h height). */
 export function placeProp(b) {
   const p = PROP_FOR[b.kind], md = models[p.m];
+  if (p.tile) {
+    // long counters / shelving runs: repeat the unit along the box instead of stretching it
+    const sc = b.h / md.size.y, unit = Math.max(md.size.x, md.size.z) * sc, len = Math.max(b.w, b.d);
+    const n = Math.max(1, Math.round(len / unit));
+    if (n > 1) {
+      const g = new THREE.Group(), alongX = b.w >= b.d, step = len / n;
+      for (let i = 0; i < n; i++) {
+        const off = -len / 2 + step * (i + 0.5);
+        g.add(placeOne({ ...b, x: b.x + (alongX ? off : 0), z: b.z + (alongX ? 0 : off), w: alongX ? step : b.w, d: alongX ? b.d : step }, p, md));
+      }
+      return g;
+    }
+  }
+  return placeOne(b, p, md);
+}
+function placeOne(b, p, md) {
   const o = md.scene.clone();
   const holder = new THREE.Group();
   // footprint orientation: rotate the model's long axis onto the box's long axis

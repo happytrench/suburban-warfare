@@ -695,12 +695,26 @@ function buildKind(B, b) {
         // trim around openings
         const alongX = b.w > b.d;
         B.box(alongX ? b.w + 0.1 : b.d + 0.04, 0.08, alongX ? b.d + 0.04 : b.w + 0.1, b.x, b.sill ? b.y + b.h : b.y - 0.04, b.z, white());
+        if (b.sill && QUALITY === 'high') {
+          // window: two sashes of glass with a frame and a centre bar (visual only, bullets pass)
+          const len = alongX ? b.w : b.d, y0 = b.y + b.h + 0.04, hh = 0.96;
+          B.box(alongX ? len - 0.08 : 0.03, hh, alongX ? 0.03 : len - 0.08, b.x, y0, b.z, mat('#b9d3e0', null, { transparent: true, opacity: 0.2, roughness: 0.05, metalness: 0.2, depthWrite: false }));
+          B.box(alongX ? len : 0.1, 0.06, alongX ? 0.1 : len, b.x, y0 + hh / 2 - 0.03, b.z, white());
+          for (const sgn of [-1, 1]) B.box(alongX ? 0.06 : 0.1, hh, alongX ? 0.1 : 0.06, b.x + (alongX ? sgn * (len / 2 - 0.03) : 0), y0, b.z + (alongX ? 0 : sgn * (len / 2 - 0.03)), white());
+          B.box(alongX ? len : 0.1, 0.06, alongX ? 0.1 : len, b.x, y0 + hh - 0.03, b.z, white());
+        }
       }
       return;
     }
     case 'shellroof': {
-      // ceiling slab (collision) + pitched roof on top
-      B.box(b.w, b.h, b.d, b.x, b.y, b.z, mat('#d8d4cb'));
+      // ceiling slab (collision) + pitched roof on top; the underside glows a little (light bouncing off the
+      // floor) so rooms aren't lit only by the green ground bounce of the sky light
+      B.box(b.w, b.h, b.d, b.x, b.y, b.z, mat('#e8e4dc', null, { emissive: '#8a8274', emissiveIntensity: 0.55 }));
+      if (QUALITY === 'high' && b.lit) {
+        const l = new THREE.PointLight('#ffe2bf', 7, Math.max(b.w, b.d) * 0.95, 1.6);
+        l.position.set(b.x, b.y - 0.35, b.z); B.dynamic.add(l);
+        B.cyl(0.22, 0.28, 0.12, b.x, b.y - 0.12, b.z, mat('#fff7e6', null, { emissive: '#ffe9c4', emissiveIntensity: 1.2 }), 12);
+      }
       const rm = b.metalRoof ? mat(b.roof, TX.metal(), { roughness: 0.35, metalness: 0.55 }) : mat(b.roof, TX.shingles());
       B.roof(b.w, b.d, b.y + b.h, b.x, b.z, b.roofH, rm, 0.45);
       return;
