@@ -490,7 +490,7 @@ function buildFarmstead() {
     { x: 30, z: 8, yaw: 1.4 }, { x: -66, z: 18, yaw: 1.6 },
   ];
   return finalize({
-    id: 'farmstead', name: 'THE FARMSTEAD', faction: 'country',
+    id: 'farmstead', name: 'SR-154 FARMSTEAD', faction: 'country',
     blurb: 'A farm on State Road 154: the ranch house, the pole barns, the equipment yard and the corn.',
     bounds: BOUNDS,
     theme: {

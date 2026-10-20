@@ -392,7 +392,7 @@ export class GameServer {
   // ---- CoD-style map vote: everyone votes in the lobby, the host's Start locks it in.
   newVote(room) {
     let opts = [...MAP_ORDER];
-    if (opts.length > 4) {
+    if (opts.length > 6) {
       // shuffle, then keep a mix of both factions' turf
       opts.sort(() => Math.random() - 0.5);
       const sub = opts.filter((id) => MAPS[id].faction === 'suburban');
